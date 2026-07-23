@@ -1,0 +1,30 @@
+# Secrets — API keys live in the OS credential store, never here.
+.env
+.env.local
+*.pem
+
+# Node / Electron
+node_modules/
+dist/
+out/
+release/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Citrine runtime data (~/.citrine is outside the repo, but just in case)
+*.sqlite
+*.sqlite3
+logs/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
