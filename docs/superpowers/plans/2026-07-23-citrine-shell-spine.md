@@ -813,14 +813,17 @@ def test_starfield_is_mostly_transparent():
 
 
 def test_starfield_tiles_seamlessly():
-    """Stars must not be clipped at the edges, or the tile seam shows."""
+    """Opposing edges must match exactly, or the repeat shows a seam."""
     img = generate_starfield(size=128, seed=5)
     px = img.load()
-    for i in range(128):
-        assert px[0, i][3] == 0 or px[127, i][3] == 0 or True
+
     left = [px[0, i][3] for i in range(128)]
     right = [px[127, i][3] for i in range(128)]
-    assert left == right, "left and right edges must match for seamless tiling"
+    assert left == right, "left and right edges must match"
+
+    top = [px[i, 0][3] for i in range(128)]
+    bottom = [px[i, 127][3] for i in range(128)]
+    assert top == bottom, "top and bottom edges must match"
 ```
 
 - [ ] **Step 4: Run the test to verify it fails**
@@ -862,7 +865,8 @@ def alpha_from_luminance(image: Image.Image, gamma: float = 0.85) -> Image.Image
     rather than fading out too aggressively.
     """
     rgb = image.convert("RGB")
-    luminance = rgb.convert("L", matrix=(_R, _G, _B, 0, _R, _G, _B, 0, _R, _G, _B, 0))
+    # PIL expects a 4-tuple for an RGB->L conversion matrix.
+    luminance = rgb.convert("L", matrix=(_R, _G, _B, 0))
     if gamma != 1.0:
         table = [min(255, round(255 * ((i / 255) ** gamma))) for i in range(256)]
         luminance = luminance.point(table)
@@ -885,7 +889,9 @@ def main() -> None:
         image = image.crop(tuple(args.crop))
 
     result = alpha_from_luminance(image)
-    result = result.crop(result.getbbox() or result.getbbox())
+    bbox = result.getbbox()
+    if bbox is not None:
+        result = result.crop(bbox)
     args.dest.parent.mkdir(parents=True, exist_ok=True)
     result.save(args.dest)
     print(f"wrote {args.dest} ({result.width}x{result.height})")
@@ -1763,7 +1769,7 @@ def make_envelope(
 - [ ] **Step 6: Run the Python contract test to verify it passes**
 
 Run: `cd ~/citrine/backend && uv run pytest tests/test_protocol.py -v`
-Expected: PASS — 24 passed (7 fixtures × 2 parametrised tests + 10 others).
+Expected: PASS — 19 passed (7 fixtures × 2 parametrised tests, plus 5 standalone).
 
 If `to_json` round-trip fails on separator differences, compare parsed objects rather than strings — the test already does this via `json.loads`.
 
@@ -1905,7 +1911,7 @@ export function nextId(prefix = 'req'): string {
 - [ ] **Step 10: Run the TypeScript contract test to verify it passes**
 
 Run: `npm test -- src/lib/protocol.test.ts`
-Expected: PASS — 18 passed.
+Expected: PASS — 19 passed (7 fixtures × 2 parametrised tests, plus 5 standalone).
 
 - [ ] **Step 11: Commit**
 
