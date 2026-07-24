@@ -1,6 +1,10 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
-// Task 7 replaces this stub with the real backend handshake.
+/** The entire renderer-facing surface. Nothing else crosses the bridge. */
 contextBridge.exposeInMainWorld('citrine', {
-  getBackendInfo: async (): Promise<{ port: number; token: string } | null> => null,
+  getBackendInfo: (): Promise<{ port: number; token: string } | null> =>
+    ipcRenderer.invoke('citrine:getBackendInfo'),
+  onSidecarState: (cb: (state: string) => void): void => {
+    ipcRenderer.on('citrine:sidecarState', (_event, state: string) => cb(state))
+  },
 })
