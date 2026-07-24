@@ -7,7 +7,17 @@ export default defineConfig({
     build: { lib: { entry: resolve(__dirname, 'electron/main.ts') } },
   },
   preload: {
-    build: { lib: { entry: resolve(__dirname, 'electron/preload.ts') } },
+    // A sandboxed preload must be CommonJS, and package.json sets
+    // "type": "module" — which makes the default output preload.mjs, an ESM
+    // file Electron will not load as a preload. Pin the format and the
+    // extension so the emitted name matches what main.ts references.
+    build: {
+      lib: {
+        entry: resolve(__dirname, 'electron/preload.ts'),
+        formats: ['cjs'],
+        fileName: () => 'preload.cjs',
+      },
+    },
   },
   renderer: {
     root: '.',

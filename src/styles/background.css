@@ -21,26 +21,17 @@
   pointer-events: none;
 }
 
-/* Temporary centring for the placeholder shell; Task 9 replaces this with
-   the real grid layout. */
-.citrine-splash {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
 /*
  * The wordmark is extracted from the logo art as bare letterforms — the
  * original's glow was inseparable from the nebula behind it, so it is
  * rebuilt here instead. drop-shadow follows the alpha channel rather than
  * the bounding box, so it haloes the letters themselves, and reading the
  * colour from a token means the glow recolours with the theme.
+ *
+ * Applies wherever the wordmark appears; sizing is the caller's business.
  */
-.citrine-wordmark {
-  display: block;
-  width: min(52%, 620px);
-  height: auto;
+.citrine-wordmark,
+.ct-empty__wordmark {
   filter:
     drop-shadow(0 0 8px rgb(124 249 255 / 45%))
     drop-shadow(0 0 22px rgb(124 249 255 / 25%));

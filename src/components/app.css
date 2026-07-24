@@ -1,0 +1,115 @@
+.ct-app {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  height: 100%;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.ct-app__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.ct-app__logo {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--c-accent);
+  text-shadow: var(--glow-accent);
+  letter-spacing: -0.02em;
+}
+.ct-app__sub {
+  color: var(--c-text);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.ct-app__body {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  gap: var(--sp-4);
+  min-height: 0;
+}
+.ct-app__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  overflow: auto;
+  /* The inset title sits half above its panel's top edge, and this is a
+     scroll container — without room to spill into, the first panel's title
+     is clipped. */
+  padding-top: var(--sp-2);
+}
+.ct-app__main {
+  min-height: 0;
+}
+
+.ct-cmdlist,
+.ct-empty__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ct-cmdlist li {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: var(--sp-2);
+}
+.ct-cmdlist__name {
+  color: var(--c-accent);
+}
+.ct-cmdlist__desc {
+  color: var(--c-text);
+}
+
+.ct-status {
+  color: var(--c-text);
+}
+.ct-accent {
+  color: var(--c-accent);
+}
+
+.ct-scrollback {
+  height: 100%;
+  overflow-y: auto;
+}
+.ct-line[data-kind='input'] {
+  color: var(--c-accent);
+}
+.ct-line[data-kind='output'] {
+  color: var(--c-text);
+}
+.ct-line[data-kind='error'] {
+  color: var(--c-err);
+}
+
+/* Empty state */
+.ct-empty__wordmark {
+  display: block;
+  width: min(560px, 70%);
+  height: auto;
+  margin: var(--sp-5) 0 var(--sp-4);
+}
+.ct-empty__tagline {
+  color: var(--c-accent);
+  margin: 0 0 var(--sp-3);
+}
+.ct-empty__rule {
+  border: none;
+  border-top: var(--border-w) solid var(--c-border);
+  margin: 0 0 var(--sp-4);
+}
+.ct-empty__list li {
+  display: grid;
+  grid-template-columns: 24px 90px 1fr;
+  align-items: baseline;
+}
+.ct-empty__star {
+  color: var(--c-accent);
+}
+.ct-empty__cmd {
+  color: var(--c-accent);
+}
+.ct-empty__desc {
+  color: var(--c-text);
+}

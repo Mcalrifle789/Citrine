@@ -17,7 +17,7 @@ function createWindow(): BrowserWindow {
     backgroundColor: '#05030F',
     show: false,
     webPreferences: {
-      preload: resolve(__dirname, '../preload/preload.js'),
+      preload: resolve(__dirname, '../preload/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
