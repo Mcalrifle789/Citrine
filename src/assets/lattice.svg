@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <defs>
+    <pattern id="quatrefoil" width="120" height="120" patternUnits="userSpaceOnUse">
+      <path d="M60 0 A30 30 0 0 1 90 30 A30 30 0 0 1 120 60 A30 30 0 0 1 90 90
+               A30 30 0 0 1 60 120 A30 30 0 0 1 30 90 A30 30 0 0 1 0 60
+               A30 30 0 0 1 30 30 A30 30 0 0 1 60 0 Z"
+            fill="none" stroke="#5CE1FF" stroke-width="1" stroke-opacity="0.10"/>
+    </pattern>
+  </defs>
+  <rect width="120" height="120" fill="url(#quatrefoil)"/>
+</svg>

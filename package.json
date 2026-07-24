@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/Mcalrifle789/Citrine#readme",
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.14"

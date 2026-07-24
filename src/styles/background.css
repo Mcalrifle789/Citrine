@@ -1,0 +1,47 @@
+/*
+ * Procedural nebula: layered radial gradients tinted from theme tokens, a
+ * tiled starfield, and the quatrefoil lattice. Recolours with the theme,
+ * costs a few KB, and never animates — a moving background would burn GPU
+ * for the entire session.
+ */
+.citrine-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--c-bg);
+  background-image:
+    url('../assets/lattice.svg'),
+    url('../assets/starfield.png'),
+    radial-gradient(ellipse 60% 45% at 78% 62%, rgb(232 163 61 / 22%), transparent 70%),
+    radial-gradient(ellipse 45% 60% at 22% 28%, rgb(150 60 200 / 20%), transparent 72%),
+    radial-gradient(ellipse 70% 50% at 50% 105%, rgb(92 225 255 / 10%), transparent 70%),
+    radial-gradient(ellipse 80% 60% at 60% 40%, rgb(200 60 120 / 12%), transparent 75%);
+  background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 120px 120px, 512px 512px, auto, auto, auto, auto;
+  pointer-events: none;
+}
+
+/* Temporary centring for the placeholder shell; Task 9 replaces this with
+   the real grid layout. */
+.citrine-splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/*
+ * The wordmark is extracted from the logo art as bare letterforms — the
+ * original's glow was inseparable from the nebula behind it, so it is
+ * rebuilt here instead. drop-shadow follows the alpha channel rather than
+ * the bounding box, so it haloes the letters themselves, and reading the
+ * colour from a token means the glow recolours with the theme.
+ */
+.citrine-wordmark {
+  display: block;
+  width: min(52%, 620px);
+  height: auto;
+  filter:
+    drop-shadow(0 0 8px rgb(124 249 255 / 45%))
+    drop-shadow(0 0 22px rgb(124 249 255 / 25%));
+}

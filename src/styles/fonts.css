@@ -1,0 +1,5 @@
+/* Bundled locally via @fontsource — never fetched at runtime.
+   A webfont that fails to load would collapse the aesthetic to Courier. */
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/700.css';

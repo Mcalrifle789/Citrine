@@ -1,4 +1,6 @@
+@import './fonts.css';
 @import '../themes/citrine.css';
+@import './background.css';
 
 *,
 *::before,
