@@ -1,0 +1,38 @@
+/*
+ * The single source of truth for every colour in Citrine.
+ * A theme is this block, redefined. Nothing else may hardcode a colour.
+ *
+ * The primary accent is CYAN. Gold is secondary, reserved for the git
+ * branch segment, the tools indicator, and warnings.
+ */
+:root,
+:root[data-theme='citrine'] {
+  --c-bg: #05030f;
+  --c-panel: rgba(10, 8, 24, 0.72);
+  --c-border: #24405e;
+  --c-accent: #5ce1ff;
+  --c-accent-glow: #7df9ff;
+  --c-gold: #e8a33d;
+  --c-text: #c8d6e5;
+  --c-text-dim: #6b7c93;
+  --c-ok: #5fd98a;
+  --c-err: #ff5c8a;
+
+  /* Glow is two layered shadows: a tight core and a diffuse halo.
+     Applied only to headings, the wordmark, the caret, and active states. */
+  --glow-accent: 0 0 8px rgb(124 249 255 / 45%), 0 0 20px rgb(124 249 255 / 22%);
+  --glow-gold: 0 0 8px rgb(232 163 61 / 40%), 0 0 20px rgb(232 163 61 / 18%);
+
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --fs-base: 13px;
+  --lh-base: 1.55;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+
+  --border-w: 1px;
+  --rail-w: 320px;
+}

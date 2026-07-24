@@ -1,0 +1,4 @@
+/* The default theme is the token block itself. Additional themes (slice 3)
+   redefine the same custom properties under their own [data-theme] selector.
+   This file exists so theme files have a consistent home from day one. */
+@import '../styles/tokens.css';

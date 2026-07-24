@@ -1,0 +1,47 @@
+@import '../themes/citrine.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* No rounded corners anywhere in Citrine. */
+  border-radius: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  /* Terminal feel: no rubber-band scroll, no text inflation on zoom. */
+  overflow: hidden;
+  text-size-adjust: none;
+}
+
+::selection {
+  background: var(--c-accent);
+  color: var(--c-bg);
+}
+
+/* Scrollbars are part of the aesthetic, not an afterthought. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-accent);
+}
