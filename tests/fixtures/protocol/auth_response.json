@@ -1,0 +1,1 @@
+{ "id": "01J0000000000000000000AUTH", "type": "response", "method": "auth", "params": { "ok": true, "server_version": "0.1.0" } }

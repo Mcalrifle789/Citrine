@@ -1,0 +1,1 @@
+{ "id": "01J00000000000000000CHAT01", "type": "event", "method": "chat.delta", "params": { "content": "Hel" } }

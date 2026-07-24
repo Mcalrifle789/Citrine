@@ -1,0 +1,1 @@
+{ "id": "01J00000000000000000ECHO01", "type": "response", "method": "echo", "params": { "text": "hello" } }

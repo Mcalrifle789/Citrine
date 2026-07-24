@@ -1,0 +1,1 @@
+{ "id": "01J00000000000000000CHAT01", "type": "error", "method": "chat.send", "params": { "code": "auth", "message": "Invalid API key provided.", "correlation_id": "9f2c1a" } }

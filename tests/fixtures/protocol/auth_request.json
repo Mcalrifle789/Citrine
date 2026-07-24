@@ -1,0 +1,1 @@
+{ "id": "01J0000000000000000000AUTH", "type": "request", "method": "auth", "params": { "token": "0123456789abcdef" } }
