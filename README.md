@@ -37,6 +37,46 @@ Electron builds the main, preload, and renderer bundles, starts the Vite dev
 server, then spawns the Python sidecar. Backend logs appear in the terminal
 prefixed with `[backend]`.
 
+### Shortcuts
+
+Two convenience launchers wrap `npm run dev`:
+
+- **`citrine`** — type it in any terminal. `bin/citrine.cmd` is on the user
+  PATH, so it works from any folder; it holds the terminal and streams logs,
+  Ctrl+C to stop. (A terminal opened *before* the PATH entry was added won't
+  see it — open a fresh one.)
+- **Desktop shortcut** — double-click *Citrine* on the desktop.
+  `bin/citrine-launch.vbs` starts the app with no visible terminal. Because
+  there is no console to read, its output is redirected to
+  `%LOCALAPPDATA%\Citrine\launch.log` so a failed launch is still diagnosable.
+  Stop it by closing the app window.
+
+Both still run the dev toolchain under the hood — conveniences, not a packaged
+build. A real double-clickable installer with no Node/Python dependency comes
+with the packaging work in a later slice.
+
+The launcher scripts and `build/icon.ico` live in the repo; the PATH entry and
+the desktop `.lnk` are machine-local, created once, not version controlled.
+Recreate them from the repo root with:
+
+```powershell
+# citrine on PATH (User scope; appends only if absent)
+$bin = "$PWD\bin"
+$p = [Environment]::GetEnvironmentVariable('PATH','User')
+if (($p -split ';') -notcontains $bin) {
+  [Environment]::SetEnvironmentVariable('PATH', $p.TrimEnd(';') + ';' + $bin, 'User')
+}
+
+# desktop shortcut
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Citrine.lnk'))
+$sc.TargetPath = 'wscript.exe'
+$sc.Arguments = "`"$PWD\bin\citrine-launch.vbs`""
+$sc.WorkingDirectory = "$PWD"
+$sc.IconLocation = "$PWD\build\icon.ico"
+$sc.Save()
+```
+
 ## Test
 
 ```bash
