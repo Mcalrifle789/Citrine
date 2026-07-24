@@ -7,6 +7,7 @@ import { EmptyState } from './EmptyState'
 import { Transport } from '../lib/transport'
 import { METHODS } from '../lib/protocol'
 import { useAppStore } from '../lib/store'
+import { applyTheme, THEMES, type ThemeName } from '../lib/theme'
 
 const COMMANDS: Array<[string, string]> = [
   ['provider', 'Add or switch model providers'],
@@ -16,14 +17,14 @@ const COMMANDS: Array<[string, string]> = [
   ['searchsetup', 'Configure DuckDuckGo, Perplexity, Gemini, Parallel, or custom search'],
   ['theme', 'Switch visual themes'],
   ['settings', 'Open Citrine settings'],
-  ['chat', 'Start a new chat session'],
+  ['new', 'Start a new session'],
   ['plan', 'Enter planning mode'],
   ['build', 'Enter execution mode'],
   ['memory', 'View or edit saved memory'],
   ['context', 'Inspect active context'],
   ['summarize', 'Summarize the session'],
   ['fork', 'Branch this conversation'],
-  ['sessions', 'Switch between agent sessions'],
+  ['session', 'Switch between agent sessions'],
   ['agent', 'Switch agents or create a new one'],
   ['tasks', 'View active agent tasks'],
   ['tools', 'Inspect enabled tools'],
@@ -116,11 +117,12 @@ export function AppShell() {
   async function handleSubmit(value: string): Promise<void> {
     addLine('input', value)
     try {
-      const method = value.startsWith('/') ? METHODS.commandRun : METHODS.echo
+      const method = value.startsWith('/') ? METHODS.commandRun : METHODS.chatSend
       const result = await transport.current!.request<{ text: string }>(method, {
         text: value,
       })
       addLine('output', result.text)
+      maybeApplyCommandSideEffect(value)
     } catch (error) {
       addLine('error', error instanceof Error ? error.message : String(error))
     }
@@ -129,6 +131,14 @@ export function AppShell() {
   function handleCommandSelect(name: string): void {
     setPromptValue(`/${name} `)
     setPromptFocusToken((token) => token + 1)
+  }
+
+  function maybeApplyCommandSideEffect(value: string): void {
+    const [command, arg] = value.trim().split(/\s+/, 2)
+    if (command !== '/theme' || !arg) return
+    if ((THEMES as readonly string[]).includes(arg)) {
+      applyTheme(arg as ThemeName)
+    }
   }
 
   const [label, tone] = CONNECTION_LABEL[connection] ?? ['unknown', 'dim']

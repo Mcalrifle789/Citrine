@@ -2,3 +2,78 @@
    redefine the same custom properties under their own [data-theme] selector.
    This file exists so theme files have a consistent home from day one. */
 @import '../styles/tokens.css';
+
+:root[data-theme='midnight'] {
+  --c-bg: #020611;
+  --c-panel: rgba(5, 12, 28, 0.76);
+  --c-border: #1e4f78;
+  --c-accent: #62b8ff;
+  --c-accent-glow: #8fd0ff;
+  --c-gold: #d7c36a;
+  --c-text: #c9d8ea;
+  --c-text-dim: #75869a;
+  --c-ok: #65d48d;
+  --c-err: #ff668a;
+  --glow-accent: 0 0 8px rgb(143 208 255 / 42%), 0 0 20px rgb(143 208 255 / 20%);
+  --glow-gold: 0 0 8px rgb(215 195 106 / 38%), 0 0 20px rgb(215 195 106 / 16%);
+}
+
+:root[data-theme='ember'] {
+  --c-bg: #090507;
+  --c-panel: rgba(22, 9, 11, 0.76);
+  --c-border: #693338;
+  --c-accent: #ff8d5c;
+  --c-accent-glow: #ffb077;
+  --c-gold: #ffd166;
+  --c-text: #ead2c6;
+  --c-text-dim: #9a766d;
+  --c-ok: #72db8f;
+  --c-err: #ff5c8a;
+  --glow-accent: 0 0 8px rgb(255 176 119 / 42%), 0 0 20px rgb(255 176 119 / 20%);
+  --glow-gold: 0 0 8px rgb(255 209 102 / 38%), 0 0 20px rgb(255 209 102 / 16%);
+}
+
+:root[data-theme='matrix'] {
+  --c-bg: #020805;
+  --c-panel: rgba(3, 18, 11, 0.76);
+  --c-border: #18553a;
+  --c-accent: #72ff9d;
+  --c-accent-glow: #a0ffc0;
+  --c-gold: #d8df6a;
+  --c-text: #c7e8d0;
+  --c-text-dim: #6c9678;
+  --c-ok: #72ff9d;
+  --c-err: #ff5c8a;
+  --glow-accent: 0 0 8px rgb(160 255 192 / 42%), 0 0 20px rgb(160 255 192 / 20%);
+  --glow-gold: 0 0 8px rgb(216 223 106 / 38%), 0 0 20px rgb(216 223 106 / 16%);
+}
+
+:root[data-theme='violet'] {
+  --c-bg: #070412;
+  --c-panel: rgba(15, 8, 30, 0.76);
+  --c-border: #49347c;
+  --c-accent: #b58cff;
+  --c-accent-glow: #d4b8ff;
+  --c-gold: #f0b85c;
+  --c-text: #d9d0ea;
+  --c-text-dim: #8b7aa5;
+  --c-ok: #67dda0;
+  --c-err: #ff6ca8;
+  --glow-accent: 0 0 8px rgb(212 184 255 / 42%), 0 0 20px rgb(212 184 255 / 20%);
+  --glow-gold: 0 0 8px rgb(240 184 92 / 38%), 0 0 20px rgb(240 184 92 / 16%);
+}
+
+:root[data-theme='mono'] {
+  --c-bg: #060708;
+  --c-panel: rgba(14, 15, 17, 0.78);
+  --c-border: #4c5964;
+  --c-accent: #d8e2ea;
+  --c-accent-glow: #ffffff;
+  --c-gold: #aeb8c2;
+  --c-text: #d8e2ea;
+  --c-text-dim: #7c858e;
+  --c-ok: #b9e5c8;
+  --c-err: #ff7a8a;
+  --glow-accent: 0 0 8px rgb(255 255 255 / 34%), 0 0 20px rgb(255 255 255 / 14%);
+  --glow-gold: 0 0 8px rgb(174 184 194 / 32%), 0 0 20px rgb(174 184 194 / 14%);
+}

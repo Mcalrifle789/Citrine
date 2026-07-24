@@ -3,10 +3,10 @@
 A local-first personal AI terminal agent. Electron + React renderer over a
 supervised Python sidecar, talking on an authenticated loopback WebSocket.
 
-**Current state: slice 1 of 6 — the shell and the spine.** The window renders,
+**Current state: shell spine plus first setup/chat routing.** The window renders,
 Electron spawns and supervises the Python backend, the renderer authenticates
-over the socket, and messages round-trip. There is no AI provider wired up yet;
-the prompt currently echoes through the backend to prove the path works.
+over the socket, slash commands mutate local config, and normal chat messages
+route to the active agent/provider when setup has been completed.
 
 ## Requirements
 
@@ -77,6 +77,44 @@ $sc.IconLocation = "$PWD\build\icon.ico"
 $sc.Save()
 ```
 
+## Terminal Setup
+
+Run the terminal setup wizard with:
+
+```powershell
+citrine setup
+```
+
+The wizard walks through:
+
+1. Username and password creation. On Windows, press `Tab` while typing the
+   password to toggle visibility.
+2. One or more model providers, including OpenRouter, Opencode, Kilo, LiteLLM,
+   Google Gemini, OpenAI, Anthropic, and custom OpenAI-compatible providers.
+3. One search provider, such as Firecrawl, DuckDuckGo, Parallel, Parallel Free,
+   Brave, Google Search, Perplexity, Gemini Search, or custom search.
+4. Optional audio/music plugins, including ElevenLabs, Deepgram, SUNO, Spotify,
+   and custom MCP audio plugins.
+
+Config is saved to Citrine's local config path. API keys are stored through the
+OS keyring when available; otherwise Citrine warns and uses a local fallback.
+
+## Slash Commands
+
+The shell currently supports 66 commands. The important active ones are:
+
+- `/theme` — list six dark themes: `citrine`, `midnight`, `ember`, `matrix`,
+  `violet`, and `mono`; use `/theme matrix` to switch.
+- `/model` — show or switch the active agent model.
+- `/session` — show or switch sessions.
+- `/new` — create and switch to a new session.
+- `/provider` — show or switch configured model providers.
+- `/agent` — switch to an agent or create one using the current provider/model.
+
+Normal chat messages now route through the configured agent provider. If the
+provider reports quota, credit, billing, auth, or rate-limit problems, Citrine
+shows that provider error instead of pretending the message succeeded.
+
 ## Test
 
 ```bash
@@ -122,13 +160,10 @@ hand-maintained in `backend/citrine/protocol.py` and `src/lib/protocol.ts`, and
 
 ## Not here yet
 
-Slice 1 deliberately excludes: API keys and the OS keychain, the provider layer
-and its 24-entry registry, onboarding, real chat streaming, the `/` command
-palette, Plan/Build mode switching, the `/theme` selector (the engine ships, one
-theme), agents and agent windows, desktop control, and the Spotify/ElevenLabs/
-SUNO/Deepgram integrations.
-
-`.env.example` arrives with the secrets work in slice 2, since there are no keys
-to document until the provider layer exists.
+Still pending: full in-app setup/onboarding, model-list fetching, real streaming
+token output, the `/` command palette, Plan/Build execution semantics, agent
+windows, desktop control, and live Spotify/ElevenLabs/SUNO/Deepgram workflows.
+OpenAI-compatible chat calls are wired first; Anthropic/Gemini-native adapters
+still need dedicated implementations.
 
 Specification and implementation plan live in `docs/superpowers/`.

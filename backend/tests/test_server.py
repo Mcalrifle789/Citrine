@@ -12,7 +12,8 @@ ORIGIN = "http://localhost:5173"
 
 
 @pytest.fixture
-def client():
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("CITRINE_HOME", str(tmp_path / "home"))
     app = create_app(token=TOKEN, allowed_origins={ORIGIN})
     return TestClient(app)
 
@@ -94,15 +95,27 @@ def test_command_run_returns_search_setup_guidance(client):
         assert "Parallel Free" in reply.params["text"]
 
 
-def test_command_run_returns_sessions_guidance(client):
+def test_command_run_returns_session_guidance(client):
     with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
         ws.send_text(_auth_frame())
         ws.receive_text()
         ws.send_text(json.dumps({"id": "c2", "type": "request",
                                  "method": "command.run",
-                                 "params": {"text": "/sessions"}}))
+                                 "params": {"text": "/session"}}))
         reply = parse_envelope(ws.receive_text())
-        assert "Agent sessions" in reply.params["text"]
+        assert "Sessions" in reply.params["text"]
+
+
+def test_chat_send_reports_missing_provider(client):
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "chat1", "type": "request",
+                                 "method": "chat.send",
+                                 "params": {"text": "hello"}}))
+        reply = parse_envelope(ws.receive_text())
+        assert reply.id == "chat1"
+        assert "No model provider" in reply.params["text"]
 
 
 def test_command_run_reports_unknown_commands(client):

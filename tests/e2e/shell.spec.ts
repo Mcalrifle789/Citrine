@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 // where __dirname does not exist.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
-test('shell launches, connects, and echoes through the Python backend', async () => {
+test('shell launches, connects, and routes through the Python backend', async () => {
   const app = await electron.launch({ args: [resolve(root, 'out/main/main.js')], cwd: root })
   const window = await app.firstWindow()
 
@@ -21,22 +21,28 @@ test('shell launches, connects, and echoes through the Python backend', async ()
 
   await expect(window.getByText('Commands: 66')).toBeVisible()
 
-  await window.getByRole('button', { name: 'Insert /sessions command' }).click()
-  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/sessions ')
+  await window.getByRole('button', { name: 'Insert /session command' }).click()
+  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/session ')
   await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
-  await expect(window.locator('[data-kind="output"]').last()).toContainText('Agent sessions')
+  await expect(window.locator('[data-kind="output"]').last()).toContainText('Sessions')
 
   await window.getByRole('button', { name: 'Insert /searchsetup command' }).click()
   await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/searchsetup ')
   await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
   await expect(window.locator('[data-kind="output"]').last()).toContainText('DuckDuckGo')
 
-  // A full round trip: renderer -> WebSocket -> Python -> back.
+  await window.getByRole('button', { name: 'Insert /theme command' }).click()
+  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/theme ')
+  await window.getByRole('textbox', { name: 'Citrine prompt' }).fill('/theme matrix')
+  await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
+  await expect(window.locator('[data-kind="output"]').last()).toContainText('Theme switched')
+
+  // A full round trip: renderer -> WebSocket -> Python -> chat router.
   await window.getByRole('textbox', { name: 'Citrine prompt' }).fill('spine check')
   await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
 
   await expect(window.getByTestId('scrollback')).toContainText('> spine check')
-  await expect(window.locator('[data-kind="output"]').last()).toHaveText('spine check')
+  await expect(window.locator('[data-kind="output"]').last()).toContainText('No model provider')
 
   await app.close()
 })

@@ -4,7 +4,7 @@
  * changes — the cascade does the work.
  */
 
-export const THEMES = ['citrine'] as const
+export const THEMES = ['citrine', 'midnight', 'ember', 'matrix', 'violet', 'mono'] as const
 export type ThemeName = (typeof THEMES)[number]
 
 export const DEFAULT_THEME: ThemeName = 'citrine'
