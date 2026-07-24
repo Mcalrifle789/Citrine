@@ -4,6 +4,9 @@
   position: relative;
   border: var(--border-w) solid var(--c-border);
   background: var(--c-panel);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
 }
 
 .ct-frame__title,
@@ -42,6 +45,9 @@
   border-top: var(--border-w) solid var(--c-border);
   padding: var(--sp-2) var(--sp-4);
   background: var(--c-panel);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
 }
 .ct-statusbar__left,
 .ct-statusbar__right {
@@ -60,11 +66,24 @@
   align-items: flex-start;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-4);
+  border: var(--border-w) solid transparent;
+  background: color-mix(in srgb, var(--c-panel) 58%, transparent);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+.ct-prompt:focus-within {
+  border-color: color-mix(in srgb, var(--c-accent) 36%, transparent);
+  background: color-mix(in srgb, var(--c-panel) 78%, transparent);
 }
 .ct-prompt__sigil {
   color: var(--c-accent);
   text-shadow: var(--glow-accent);
   user-select: none;
+  transition: transform 160ms ease;
+}
+.ct-prompt:focus-within .ct-prompt__sigil {
+  transform: translateX(2px);
 }
 .ct-prompt__input {
   flex: 1;
@@ -78,4 +97,18 @@
 }
 .ct-prompt__input:disabled {
   color: var(--c-text-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-frame,
+  .ct-panel,
+  .ct-statusbar,
+  .ct-prompt,
+  .ct-prompt__sigil {
+    transition: none;
+  }
+
+  .ct-prompt:focus-within .ct-prompt__sigil {
+    transform: none;
+  }
 }

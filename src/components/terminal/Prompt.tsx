@@ -1,19 +1,43 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 interface PromptProps {
   onSubmit: (value: string) => void
   disabled?: boolean
+  value?: string
+  onValueChange?: (value: string) => void
+  focusToken?: number
 }
 
 /**
  * The always-focused input line. Owns its own history: index -1 means "the
  * live draft", and walking forward past the newest entry returns to it.
  */
-export function Prompt({ onSubmit, disabled = false }: PromptProps) {
-  const [value, setValue] = useState('')
+export function Prompt({
+  onSubmit,
+  disabled = false,
+  value: controlledValue,
+  onValueChange,
+  focusToken,
+}: PromptProps) {
+  const [internalValue, setInternalValue] = useState('')
   const [history, setHistory] = useState<string[]>([])
   const [index, setIndex] = useState(-1)
   const ref = useRef<HTMLTextAreaElement>(null)
+  const value = controlledValue ?? internalValue
+
+  useEffect(() => {
+    if (focusToken === undefined) return
+    ref.current?.focus()
+    const length = ref.current?.value.length ?? 0
+    ref.current?.setSelectionRange(length, length)
+  }, [focusToken])
+
+  function setValue(nextValue: string): void {
+    onValueChange?.(nextValue)
+    if (controlledValue === undefined) {
+      setInternalValue(nextValue)
+    }
+  }
 
   function recall(nextIndex: number): void {
     if (nextIndex < 0) {

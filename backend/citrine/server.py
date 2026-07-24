@@ -18,6 +18,7 @@ import uuid
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from citrine.commands import run_command
 from citrine.logging import get_logger
 from citrine.protocol import (
     SERVER_VERSION,
@@ -112,6 +113,13 @@ async def _serve(websocket: WebSocket) -> None:
             text = envelope.params.get("text", "")
             reply = make_envelope(envelope.id, MessageType.RESPONSE, "echo",
                                   {"text": text})
+            await websocket.send_text(reply.to_json())
+            continue
+
+        if envelope.method == "command.run":
+            text = envelope.params.get("text", "")
+            reply = make_envelope(envelope.id, MessageType.RESPONSE, "command.run",
+                                  {"text": run_command(str(text))})
             await websocket.send_text(reply.to_json())
             continue
 

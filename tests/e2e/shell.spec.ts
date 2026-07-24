@@ -19,12 +19,24 @@ test('shell launches, connects, and echoes through the Python backend', async ()
   // The empty state shows before any input.
   await expect(window.getByTestId('scrollback')).toContainText('How can I help you')
 
+  await expect(window.getByText('Commands: 66')).toBeVisible()
+
+  await window.getByRole('button', { name: 'Insert /sessions command' }).click()
+  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/sessions ')
+  await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
+  await expect(window.locator('[data-kind="output"]').last()).toContainText('Agent sessions')
+
+  await window.getByRole('button', { name: 'Insert /searchsetup command' }).click()
+  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/searchsetup ')
+  await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
+  await expect(window.locator('[data-kind="output"]').last()).toContainText('DuckDuckGo')
+
   // A full round trip: renderer -> WebSocket -> Python -> back.
   await window.getByRole('textbox', { name: 'Citrine prompt' }).fill('spine check')
   await window.getByRole('textbox', { name: 'Citrine prompt' }).press('Enter')
 
   await expect(window.getByTestId('scrollback')).toContainText('> spine check')
-  await expect(window.locator('[data-kind="output"]')).toHaveText('spine check')
+  await expect(window.locator('[data-kind="output"]').last()).toHaveText('spine check')
 
   await app.close()
 })

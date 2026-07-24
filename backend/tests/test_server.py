@@ -81,6 +81,41 @@ def test_echo_round_trips_after_authentication(client):
         assert reply.params["text"] == "hello spine"
 
 
+def test_command_run_returns_search_setup_guidance(client):
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "c1", "type": "request",
+                                 "method": "command.run",
+                                 "params": {"text": "/searchsetup"}}))
+        reply = parse_envelope(ws.receive_text())
+        assert reply.id == "c1"
+        assert "DuckDuckGo" in reply.params["text"]
+        assert "Parallel Free" in reply.params["text"]
+
+
+def test_command_run_returns_sessions_guidance(client):
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "c2", "type": "request",
+                                 "method": "command.run",
+                                 "params": {"text": "/sessions"}}))
+        reply = parse_envelope(ws.receive_text())
+        assert "Agent sessions" in reply.params["text"]
+
+
+def test_command_run_reports_unknown_commands(client):
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "c3", "type": "request",
+                                 "method": "command.run",
+                                 "params": {"text": "/wat"}}))
+        reply = parse_envelope(ws.receive_text())
+        assert reply.params["text"].startswith("Unknown command: /wat")
+
+
 def test_unknown_method_returns_an_error_frame_without_closing(client):
     with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
         ws.send_text(_auth_frame())

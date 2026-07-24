@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { Prompt } from './Prompt'
 
@@ -65,5 +66,20 @@ describe('Prompt', () => {
     const input = screen.getByRole('textbox')
     await userEvent.type(input, 'hello{Enter}')
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('supports a controlled draft value', async () => {
+    const onSubmit = vi.fn()
+    function ControlledPrompt() {
+      const [value, setValue] = useState('/chat ')
+      return <Prompt value={value} onValueChange={setValue} onSubmit={onSubmit} />
+    }
+
+    render(<ControlledPrompt />)
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    expect(input.value).toBe('/chat ')
+    await userEvent.type(input, 'hello{Enter}')
+    expect(onSubmit).toHaveBeenCalledWith('/chat hello')
+    expect(input.value).toBe('')
   })
 })

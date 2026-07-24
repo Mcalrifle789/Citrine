@@ -1,20 +1,79 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Frame } from './terminal/Frame'
 import { Panel } from './terminal/Panel'
 import { Prompt } from './terminal/Prompt'
 import { StatusBar, type Segment } from './terminal/StatusBar'
 import { EmptyState } from './EmptyState'
 import { Transport } from '../lib/transport'
+import { METHODS } from '../lib/protocol'
 import { useAppStore } from '../lib/store'
 
 const COMMANDS: Array<[string, string]> = [
-  ['init', 'Initialize a new project'],
+  ['provider', 'Add or switch model providers'],
+  ['model', 'Browse models from the selected provider'],
+  ['keys', 'Manage stored API keys'],
+  ['mcp', 'Connect ElevenLabs, Deepgram, SUNO, or custom MCP'],
+  ['searchsetup', 'Configure DuckDuckGo, Perplexity, Gemini, Parallel, or custom search'],
+  ['theme', 'Switch visual themes'],
+  ['settings', 'Open Citrine settings'],
   ['chat', 'Start a new chat session'],
+  ['plan', 'Enter planning mode'],
+  ['build', 'Enter execution mode'],
+  ['memory', 'View or edit saved memory'],
+  ['context', 'Inspect active context'],
+  ['summarize', 'Summarize the session'],
+  ['fork', 'Branch this conversation'],
+  ['sessions', 'Switch between agent sessions'],
+  ['agent', 'Switch agents or create a new one'],
+  ['tasks', 'View active agent tasks'],
+  ['tools', 'Inspect enabled tools'],
+  ['approvals', 'Review pending confirmations'],
+  ['schedule', 'Create a scheduled task'],
   ['code', 'Generate or refactor code'],
   ['explain', 'Explain code or concepts'],
-  ['test', 'Generate unit tests'],
+  ['refactor', 'Improve existing code'],
+  ['test', 'Generate or run tests'],
   ['docs', 'Generate documentation'],
-  ['config', 'Manage configuration'],
+  ['review', 'Review code for bugs'],
+  ['debug', 'Diagnose errors'],
+  ['diff', 'Inspect current changes'],
+  ['patch', 'Apply a focused patch'],
+  ['commit', 'Create a git commit'],
+  ['git', 'Inspect branches and history'],
+  ['init', 'Initialize a project'],
+  ['open', 'Open a project'],
+  ['files', 'Browse project files'],
+  ['workspace', 'Manage workspace roots'],
+  ['run', 'Run a project command'],
+  ['terminal', 'Open a shell pane'],
+  ['deploy', 'Deploy the project'],
+  ['env', 'Manage environment variables'],
+  ['package', 'Build or package the app'],
+  ['update', 'Check for updates'],
+  ['desktop', 'Request desktop control'],
+  ['screenshot', 'Capture the screen'],
+  ['browse', 'Open a browser task'],
+  ['search', 'Search through the configured search provider'],
+  ['web', 'Fetch or inspect web pages'],
+  ['research', 'Run a research pass'],
+  ['notes', 'Open local notes'],
+  ['speak', 'Generate speech with ElevenLabs'],
+  ['listen', 'Start voice input'],
+  ['transcribe', 'Transcribe audio with Deepgram'],
+  ['voice', 'Manage voices'],
+  ['music', 'Generate music with SUNO'],
+  ['clone', 'Duplicate or transform audio'],
+  ['media', 'View generated media assets'],
+  ['spotify', 'Browse or play Spotify'],
+  ['calendar', 'Inspect calendar context'],
+  ['inbox', 'Triage messages or email'],
+  ['commands', 'Open the full command catalog'],
+  ['history', 'Browse previous sessions'],
+  ['export', 'Export chats or artifacts'],
+  ['reset', 'Reset session state'],
+  ['logs', 'Open app and backend logs'],
+  ['health', 'Run Citrine diagnostics'],
+  ['status', 'Show current system status'],
   ['help', 'Show help information'],
 ]
 
@@ -29,6 +88,8 @@ const CONNECTION_LABEL: Record<string, [string, Segment['tone']]> = {
 
 export function AppShell() {
   const transport = useRef<Transport | null>(null)
+  const [promptValue, setPromptValue] = useState('')
+  const [promptFocusToken, setPromptFocusToken] = useState(0)
   const { connection, lines, addLine, setConnection } = useAppStore()
 
   useEffect(() => {
@@ -55,13 +116,19 @@ export function AppShell() {
   async function handleSubmit(value: string): Promise<void> {
     addLine('input', value)
     try {
-      const result = await transport.current!.request<{ text: string }>('echo', {
+      const method = value.startsWith('/') ? METHODS.commandRun : METHODS.echo
+      const result = await transport.current!.request<{ text: string }>(method, {
         text: value,
       })
       addLine('output', result.text)
     } catch (error) {
       addLine('error', error instanceof Error ? error.message : String(error))
     }
+  }
+
+  function handleCommandSelect(name: string): void {
+    setPromptValue(`/${name} `)
+    setPromptFocusToken((token) => token + 1)
   }
 
   const [label, tone] = CONNECTION_LABEL[connection] ?? ['unknown', 'dim']
@@ -79,8 +146,15 @@ export function AppShell() {
             <ul className="ct-cmdlist">
               {COMMANDS.map(([name, description]) => (
                 <li key={name}>
-                  <span className="ct-cmdlist__name">{name}</span>
-                  <span className="ct-cmdlist__desc">{description}</span>
+                  <button
+                    type="button"
+                    className="ct-cmdlist__button"
+                    onClick={() => handleCommandSelect(name)}
+                    aria-label={`Insert /${name} command`}
+                  >
+                    <span className="ct-cmdlist__name">/{name}</span>
+                    <span className="ct-cmdlist__desc">{description}</span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -91,6 +165,7 @@ export function AppShell() {
                 Connection: <span className="ct-accent">{label}</span>
               </div>
               <div>Session: local</div>
+              <div>Commands: {COMMANDS.length}</div>
             </div>
           </Panel>
         </aside>
@@ -119,7 +194,13 @@ export function AppShell() {
         ]}
         right={[{ id: 'conn', label, tone }]}
       />
-      <Prompt onSubmit={(v) => void handleSubmit(v)} disabled={connection !== 'open'} />
+      <Prompt
+        value={promptValue}
+        onValueChange={setPromptValue}
+        focusToken={promptFocusToken}
+        onSubmit={(v) => void handleSubmit(v)}
+        disabled={connection !== 'open'}
+      />
     </div>
   )
 }
