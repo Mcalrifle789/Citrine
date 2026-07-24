@@ -1,6 +1,7 @@
 @import './fonts.css';
 @import '../themes/citrine.css';
 @import './background.css';
+@import '../components/terminal/terminal.css';
 
 *,
 *::before,

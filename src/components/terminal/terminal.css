@@ -1,0 +1,81 @@
+/* Inset-title border treatment, shared by Frame and Panel. */
+.ct-frame,
+.ct-panel {
+  position: relative;
+  border: var(--border-w) solid var(--c-border);
+  background: var(--c-panel);
+}
+
+.ct-frame__title,
+.ct-panel__title {
+  position: absolute;
+  top: 0;
+  left: var(--sp-4);
+  transform: translateY(-50%);
+  padding: 0 var(--sp-2);
+  background: var(--c-bg);
+  color: var(--c-accent);
+  text-shadow: var(--glow-accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ct-frame__body,
+.ct-panel__body {
+  padding: var(--sp-4);
+}
+
+.ct-frame {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.ct-frame__body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Status bar */
+.ct-statusbar {
+  display: flex;
+  justify-content: space-between;
+  border-top: var(--border-w) solid var(--c-border);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--c-panel);
+}
+.ct-statusbar__left,
+.ct-statusbar__right {
+  display: flex;
+  gap: var(--sp-4);
+}
+.ct-statusbar__seg[data-tone='accent'] { color: var(--c-accent); }
+.ct-statusbar__seg[data-tone='gold']   { color: var(--c-gold); }
+.ct-statusbar__seg[data-tone='ok']     { color: var(--c-ok); }
+.ct-statusbar__seg[data-tone='err']    { color: var(--c-err); }
+.ct-statusbar__seg[data-tone='dim']    { color: var(--c-text-dim); }
+
+/* Prompt */
+.ct-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+}
+.ct-prompt__sigil {
+  color: var(--c-accent);
+  text-shadow: var(--glow-accent);
+  user-select: none;
+}
+.ct-prompt__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  caret-color: var(--c-accent);
+}
+.ct-prompt__input:disabled {
+  color: var(--c-text-dim);
+}
