@@ -98,6 +98,9 @@ The wizard walks through:
 
 Config is saved to Citrine's local config path. API keys are stored through the
 OS keyring when available; otherwise Citrine warns and uses a local fallback.
+The setup picker supports search, comma lists, ranges like `2-4`, `all`,
+`done`, and `skip` for optional plugin steps. Nothing is written until the final
+review screen is confirmed.
 
 ## Slash Commands
 

@@ -28,7 +28,7 @@ def send_chat(message: str, config: CitrineConfig | None = None) -> str:
     if not model:
         return f"{provider.label} is configured, but no model is selected. Use /model <name>."
 
-    api_key = load_secret(secret_key("provider", provider.id))
+    api_key = _api_key(provider.id, descriptor.env_var)
     if not api_key:
         return f"{provider.label} has no stored API key. Run `citrine setup`."
 
@@ -103,3 +103,13 @@ def _provider_error(label: str, status: int, body: str) -> str:
     else:
         reason = "provider"
     return f"{label} {reason} error ({status}): {body[:700]}"
+
+
+def _api_key(provider_id: str, env_var: str | None) -> str | None:
+    if env_var:
+        import os
+
+        value = os.environ.get(env_var)
+        if value:
+            return value
+    return load_secret(secret_key("provider", provider_id))
