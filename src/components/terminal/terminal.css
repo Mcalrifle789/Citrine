@@ -61,6 +61,9 @@
 .ct-statusbar__seg[data-tone='dim']    { color: var(--c-text-dim); }
 
 /* Prompt */
+.ct-promptwrap {
+  position: relative;
+}
 .ct-prompt {
   display: flex;
   align-items: flex-start;
@@ -75,6 +78,15 @@
 .ct-prompt:focus-within {
   border-color: color-mix(in srgb, var(--c-accent) 36%, transparent);
   background: color-mix(in srgb, var(--c-panel) 78%, transparent);
+}
+.ct-prompt__meta {
+  max-width: min(42vw, 560px);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--c-accent);
+  text-overflow: ellipsis;
+  text-shadow: var(--glow-accent);
+  white-space: nowrap;
 }
 .ct-prompt__sigil {
   color: var(--c-accent);
@@ -97,6 +109,36 @@
 }
 .ct-prompt__input:disabled {
   color: var(--c-text-dim);
+}
+.ct-command-popover {
+  position: absolute;
+  bottom: calc(100% + var(--sp-2));
+  left: var(--sp-4);
+  z-index: 10;
+  display: grid;
+  width: min(520px, calc(100vw - 32px));
+  max-height: 220px;
+  overflow-y: auto;
+  border: var(--border-w) solid var(--c-border);
+  background: color-mix(in srgb, var(--c-bg) 88%, transparent);
+  box-shadow: 0 0 24px rgb(0 0 0 / 35%);
+}
+.ct-command-popover__item {
+  border: 0;
+  border-bottom: var(--border-w) solid color-mix(in srgb, var(--c-border) 45%, transparent);
+  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ct-command-popover__item:hover,
+.ct-command-popover__item:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--c-accent) 13%, transparent);
+  color: var(--c-accent);
+  text-shadow: var(--glow-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {

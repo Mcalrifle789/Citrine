@@ -42,6 +42,7 @@ class ErrorCode(str, Enum):
 
 class Method(str, Enum):
     AUTH = "auth"
+    APP_STATUS = "app.status"
     ECHO = "echo"
     COMMAND_RUN = "command.run"
     CHAT_SEND = "chat.send"

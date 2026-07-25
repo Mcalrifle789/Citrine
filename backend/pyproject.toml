@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "websockets>=13",
     "keyring>=25",
+    "questionary>=2.0",
 ]
 
 [project.optional-dependencies]

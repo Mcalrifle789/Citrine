@@ -9,6 +9,20 @@ import { METHODS } from '../lib/protocol'
 import { useAppStore } from '../lib/store'
 import { applyTheme, THEMES, type ThemeName } from '../lib/theme'
 
+interface AppStatus {
+  provider: string
+  provider_id: string | null
+  model: string
+  tokens: string
+  token_total: number
+  session: string
+  sessions: string[]
+  agent: string
+  agents: string[]
+  providers: Array<{ id: string; label: string; model?: string | null }>
+  models: string[]
+}
+
 const COMMANDS: Array<[string, string]> = [
   ['provider', 'Add or switch model providers'],
   ['model', 'Browse models from the selected provider'],
@@ -91,6 +105,7 @@ export function AppShell() {
   const transport = useRef<Transport | null>(null)
   const [promptValue, setPromptValue] = useState('')
   const [promptFocusToken, setPromptFocusToken] = useState(0)
+  const [appStatus, setAppStatus] = useState<AppStatus | null>(null)
   const { connection, lines, addLine, setConnection } = useAppStore()
 
   useEffect(() => {
@@ -106,6 +121,7 @@ export function AppShell() {
       }
       try {
         await t.connect(info)
+        await refreshStatus(t)
       } catch (error) {
         addLine('error', error instanceof Error ? error.message : String(error))
       }
@@ -123,6 +139,9 @@ export function AppShell() {
       })
       addLine('output', result.text)
       maybeApplyCommandSideEffect(value)
+      if (value.startsWith('/')) {
+        await refreshStatus()
+      }
     } catch (error) {
       addLine('error', error instanceof Error ? error.message : String(error))
     }
@@ -141,7 +160,58 @@ export function AppShell() {
     }
   }
 
+  async function refreshStatus(client = transport.current): Promise<void> {
+    if (!client || client.getState() !== 'open') return
+    const result = await client.request<AppStatus>(METHODS.appStatus)
+    setAppStatus(result)
+  }
+
+  function commandSuggestions(): Array<{ label: string; value: string }> {
+    if (!promptValue.startsWith('/')) return []
+    const [command, ...rest] = promptValue.trimStart().split(/\s+/)
+    const query = rest.join(' ').toLowerCase()
+    const filter = (items: Array<{ label: string; value: string }>) =>
+      items.filter((item) => item.label.toLowerCase().includes(query)).slice(0, 8)
+
+    if (command === '/provider') {
+      return filter(
+        (appStatus?.providers ?? []).map((provider) => ({
+          label: `${provider.label}${provider.model ? ` · ${provider.model}` : ''}`,
+          value: `/provider ${provider.id}`,
+        })),
+      )
+    }
+    if (command === '/model') {
+      return filter(
+        (appStatus?.models ?? []).map((model) => ({
+          label: model,
+          value: `/model ${model}`,
+        })),
+      )
+    }
+    if (command === '/session') {
+      return filter(
+        (appStatus?.sessions ?? []).map((session) => ({
+          label: session,
+          value: `/session ${session}`,
+        })),
+      )
+    }
+    if (command === '/agent') {
+      return filter(
+        (appStatus?.agents ?? []).map((agent) => ({
+          label: agent,
+          value: `/agent ${agent}`,
+        })),
+      )
+    }
+    return []
+  }
+
   const [label, tone] = CONNECTION_LABEL[connection] ?? ['unknown', 'dim']
+  const promptMeta = appStatus
+    ? `${appStatus.provider} · ${appStatus.model} · ${tokenMeter(appStatus.token_total, lines)}`
+    : 'provider: -- · model: -- · tokens: --'
 
   return (
     <div className="ct-app">
@@ -208,9 +278,23 @@ export function AppShell() {
         value={promptValue}
         onValueChange={setPromptValue}
         focusToken={promptFocusToken}
+        meta={promptMeta}
+        suggestions={commandSuggestions()}
         onSubmit={(v) => void handleSubmit(v)}
         disabled={connection !== 'open'}
       />
     </div>
   )
+}
+
+function tokenMeter(total: number, lines: Array<{ text: string }>): string {
+  if (total <= 0) return '--'
+  const used = lines.reduce((sum, line) => sum + Math.ceil(line.text.length / 4), 0)
+  return `${compactTokens(Math.max(total - used, 0))}/${compactTokens(total)}`
+}
+
+function compactTokens(value: number): string {
+  if (value >= 1_000_000) return `${Math.floor(value / 1_000_000)}m`
+  if (value >= 1_000) return `${Math.floor(value / 1_000)}k`
+  return String(value)
 }

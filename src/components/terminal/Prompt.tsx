@@ -6,6 +6,8 @@ interface PromptProps {
   value?: string
   onValueChange?: (value: string) => void
   focusToken?: number
+  meta?: string
+  suggestions?: Array<{ label: string; value: string }>
 }
 
 /**
@@ -18,6 +20,8 @@ export function Prompt({
   value: controlledValue,
   onValueChange,
   focusToken,
+  meta,
+  suggestions = [],
 }: PromptProps) {
   const [internalValue, setInternalValue] = useState('')
   const [history, setHistory] = useState<string[]>([])
@@ -79,22 +83,43 @@ export function Prompt({
   }
 
   return (
-    <div className="ct-prompt">
-      <span className="ct-prompt__sigil" aria-hidden="true">
-        &gt;
-      </span>
-      <textarea
-        ref={ref}
-        className="ct-prompt__input"
-        rows={1}
-        spellCheck={false}
-        autoComplete="off"
-        aria-label="Citrine prompt"
-        value={value}
-        disabled={disabled}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
+    <div className="ct-promptwrap">
+      {suggestions.length > 0 && (
+        <div className="ct-command-popover" role="listbox" aria-label="Command suggestions">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.value}
+              type="button"
+              className="ct-command-popover__item"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setValue(suggestion.value)
+                ref.current?.focus()
+              }}
+            >
+              {suggestion.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="ct-prompt">
+        {meta && <span className="ct-prompt__meta">{meta}</span>}
+        <span className="ct-prompt__sigil" aria-hidden="true">
+          &gt;
+        </span>
+        <textarea
+          ref={ref}
+          className="ct-prompt__input"
+          rows={1}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Citrine prompt"
+          value={value}
+          disabled={disabled}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
     </div>
   )
 }

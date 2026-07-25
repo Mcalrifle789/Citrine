@@ -1,13 +1,20 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 // package.json sets "type": "module", so Playwright loads this file as ESM
 // where __dirname does not exist.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
 test('shell launches, connects, and routes through the Python backend', async () => {
-  const app = await electron.launch({ args: [resolve(root, 'out/main/main.js')], cwd: root })
+  const citrineHome = mkdtempSync(resolve(tmpdir(), 'citrine-e2e-'))
+  const app = await electron.launch({
+    args: [resolve(root, 'out/main/main.js')],
+    cwd: root,
+    env: { ...process.env, CITRINE_HOME: citrineHome },
+  })
   const window = await app.firstWindow()
 
   // The status bar reports a live backend connection. Scoped to the status
@@ -20,6 +27,12 @@ test('shell launches, connects, and routes through the Python backend', async ()
   await expect(window.getByTestId('scrollback')).toContainText('How can I help you')
 
   await expect(window.getByText('Commands: 66')).toBeVisible()
+  await expect(window.getByText('Not configured · No model · --')).toBeVisible()
+
+  await window.getByRole('textbox', { name: 'Citrine prompt' }).fill('/model ')
+  await expect(window.getByRole('listbox', { name: 'Command suggestions' })).toBeVisible()
+  await window.getByRole('button', { name: 'openai/gpt-4o', exact: true }).click()
+  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/model openai/gpt-4o')
 
   await window.getByRole('button', { name: 'Insert /session command' }).click()
   await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/session ')

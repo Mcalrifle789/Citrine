@@ -95,6 +95,20 @@ def test_command_run_returns_search_setup_guidance(client):
         assert "Parallel Free" in reply.params["text"]
 
 
+def test_app_status_reports_defaults(client):
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "s1", "type": "request",
+                                 "method": "app.status",
+                                 "params": {}}))
+        reply = parse_envelope(ws.receive_text())
+        assert reply.id == "s1"
+        assert reply.params["provider"] == "Not configured"
+        assert reply.params["tokens"] == "--"
+        assert reply.params["sessions"] == ["main"]
+
+
 def test_command_run_returns_session_guidance(client):
     with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
         ws.send_text(_auth_frame())

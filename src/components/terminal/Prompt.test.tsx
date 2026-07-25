@@ -82,4 +82,27 @@ describe('Prompt', () => {
     expect(onSubmit).toHaveBeenCalledWith('/chat hello')
     expect(input.value).toBe('')
   })
+
+  it('shows meta and lets suggestions fill the prompt', async () => {
+    const user = userEvent.setup()
+    function SuggestedPrompt() {
+      const [value, setValue] = useState('/model ')
+      return (
+        <Prompt
+          value={value}
+          onValueChange={setValue}
+          onSubmit={vi.fn()}
+          meta="OpenAI · gpt-4o-mini · 128k/128k"
+          suggestions={[{ label: 'gpt-4o', value: '/model gpt-4o' }]}
+        />
+      )
+    }
+
+    render(<SuggestedPrompt />)
+    expect(screen.getByText('OpenAI · gpt-4o-mini · 128k/128k').textContent).toBe(
+      'OpenAI · gpt-4o-mini · 128k/128k',
+    )
+    await user.click(screen.getByRole('button', { name: 'gpt-4o' }))
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('/model gpt-4o')
+  })
 })

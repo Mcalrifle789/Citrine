@@ -98,9 +98,11 @@ The wizard walks through:
 
 Config is saved to Citrine's local config path. API keys are stored through the
 OS keyring when available; otherwise Citrine warns and uses a local fallback.
-The setup picker supports search, comma lists, ranges like `2-4`, `all`,
-`done`, and `skip` for optional plugin steps. Nothing is written until the final
-review screen is confirmed.
+The setup picker opens the available options immediately. Scroll, click, or use
+the arrow keys; multi-select steps use checkboxes and single-select steps use a
+focused list. The active option is cyan. If the terminal cannot run the rich
+picker, Citrine falls back to typed selections. Nothing is written until the
+final review screen is confirmed.
 
 ## Slash Commands
 
@@ -117,6 +119,10 @@ The shell currently supports 66 commands. The important active ones are:
 Normal chat messages now route through the configured agent provider. If the
 provider reports quota, credit, billing, auth, or rate-limit problems, Citrine
 shows that provider error instead of pretending the message succeeded.
+The prompt footer shows the active provider, active model, and an estimated
+remaining/total context-token meter. Typing `/provider`, `/model`, `/session`,
+or `/agent` opens a clickable popup list instead of dumping choices into the
+response area.
 
 ## Test
 

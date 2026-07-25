@@ -187,9 +187,13 @@ class SetupWizard:
 
 
 def _pick_many(items: Sequence[ProviderDescriptor], allow_empty: bool) -> list[ProviderDescriptor]:
+    picked = _questionary_checkbox(items, allow_empty)
+    if picked is not None:
+        return picked
+
     selected: list[ProviderDescriptor] = []
     while True:
-        matches = _search_screen(items, selected)
+        _table(items, selected)
         prompt = "Select numbers, `all`, `done`"
         if allow_empty:
             prompt += ", or `skip`"
@@ -199,13 +203,11 @@ def _pick_many(items: Sequence[ProviderDescriptor], allow_empty: bool) -> list[P
         if raw == "skip" and allow_empty:
             return []
         if raw == "all":
-            for item in matches:
-                if item not in selected:
-                    selected.append(item)
+            selected = list(items)
             continue
         try:
-            for index in _parse_indexes(raw, len(matches)):
-                item = matches[index]
+            for index in _parse_indexes(raw, len(items)):
+                item = items[index]
                 if item in selected:
                     selected.remove(item)
                 else:
@@ -213,21 +215,103 @@ def _pick_many(items: Sequence[ProviderDescriptor], allow_empty: bool) -> list[P
         except ValueError as exc:
             print(exc)
             continue
-        if selected:
-            print("Selected: " + ", ".join(item.label for item in selected))
 
 
 def _pick_one(items: Sequence[ProviderDescriptor]) -> ProviderDescriptor:
+    picked = _questionary_select(items)
+    if picked is not None:
+        return picked
+
     while True:
-        matches = _search_screen(items, [])
+        _table(items, [])
         raw = input("Select one number: ").strip().lower()
         try:
-            indexes = _parse_indexes(raw, len(matches))
+            indexes = _parse_indexes(raw, len(items))
             if len(indexes) != 1:
                 raise ValueError("Pick exactly one item.")
-            return matches[indexes[0]]
+            return items[indexes[0]]
         except ValueError as exc:
             print(exc)
+
+
+def _questionary_checkbox(
+    items: Sequence[ProviderDescriptor],
+    allow_empty: bool,
+) -> list[ProviderDescriptor] | None:
+    try:
+        import questionary
+        from questionary import Choice
+    except Exception:
+        return None
+
+    choices = [
+        Choice(title=_choice_title(item), value=item)
+        for item in items
+    ]
+    while True:
+        selected = questionary.checkbox(
+            "Scroll, click, or press Space to toggle. Enter confirms.",
+            choices=choices,
+            style=_questionary_style(),
+            pointer=">",
+            qmark="",
+            use_jk_keys=True,
+            mouse_support=True,
+        ).ask()
+        if selected is None:
+            raise KeyboardInterrupt
+        if selected or allow_empty:
+            return list(selected)
+        print("Pick at least one.")
+
+
+def _questionary_select(items: Sequence[ProviderDescriptor]) -> ProviderDescriptor | None:
+    try:
+        import questionary
+        from questionary import Choice
+    except Exception:
+        return None
+
+    selected = questionary.select(
+        "Scroll or click one option. Enter confirms.",
+        choices=[Choice(title=_choice_title(item), value=item) for item in items],
+        style=_questionary_style(),
+        pointer=">",
+        qmark="",
+        use_jk_keys=True,
+        mouse_support=True,
+    ).ask()
+    if selected is None:
+        raise KeyboardInterrupt
+    return selected
+
+
+def _questionary_style():
+    from prompt_toolkit.styles import Style
+
+    return Style(
+        [
+            ("qmark", "fg:#5CE1FF bold"),
+            ("question", "fg:#5CE1FF bold"),
+            ("pointer", "fg:#5CE1FF bold"),
+            ("highlighted", "fg:#5CE1FF bold"),
+            ("selected", "fg:#5CE1FF"),
+            ("checkbox-selected", "fg:#5CE1FF"),
+            ("answer", "fg:#5CE1FF bold"),
+        ]
+    )
+
+
+def _choice_title(item: ProviderDescriptor) -> str:
+    notes = []
+    if item.default_model:
+        notes.append(item.default_model)
+    if item.env_var:
+        notes.append(item.env_var)
+    elif item.kind == "search":
+        notes.append("no key required")
+    suffix = f"  -  {', '.join(notes)}" if notes else ""
+    return f"{item.label}{suffix}"
 
 
 def _search_screen(
