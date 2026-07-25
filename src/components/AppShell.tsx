@@ -14,6 +14,7 @@ interface AppStatus {
   provider_id: string | null
   model: string
   tokens: string
+  token_used: number
   token_total: number
   session: string
   sessions: string[]
@@ -139,9 +140,7 @@ export function AppShell() {
       })
       addLine('output', result.text)
       maybeApplyCommandSideEffect(value)
-      if (value.startsWith('/')) {
-        await refreshStatus()
-      }
+      await refreshStatus()
     } catch (error) {
       addLine('error', error instanceof Error ? error.message : String(error))
     }
@@ -210,7 +209,7 @@ export function AppShell() {
 
   const [label, tone] = CONNECTION_LABEL[connection] ?? ['unknown', 'dim']
   const promptMeta = appStatus
-    ? `${appStatus.provider} · ${appStatus.model} · ${tokenMeter(appStatus.token_total, lines)}`
+    ? `${appStatus.provider} · ${appStatus.model} · ${appStatus.tokens}`
     : 'provider: -- · model: -- · tokens: --'
 
   return (
@@ -285,16 +284,4 @@ export function AppShell() {
       />
     </div>
   )
-}
-
-function tokenMeter(total: number, lines: Array<{ text: string }>): string {
-  if (total <= 0) return '--'
-  const used = lines.reduce((sum, line) => sum + Math.ceil(line.text.length / 4), 0)
-  return `${compactTokens(Math.max(total - used, 0))}/${compactTokens(total)}`
-}
-
-function compactTokens(value: number): string {
-  if (value >= 1_000_000) return `${Math.floor(value / 1_000_000)}m`
-  if (value >= 1_000) return `${Math.floor(value / 1_000)}k`
-  return String(value)
 }

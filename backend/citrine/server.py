@@ -30,6 +30,7 @@ from citrine.protocol import (
     make_envelope,
     parse_envelope,
 )
+from citrine.tokens import estimate_tokens
 
 log = get_logger("citrine.server")
 
@@ -129,6 +130,7 @@ async def _serve(websocket: WebSocket) -> None:
             text = envelope.params.get("text", "")
             config = load_config()
             output = run_command(str(text), config)
+            _add_session_tokens(config, estimate_tokens(str(text)) + estimate_tokens(output))
             save_config(config)
             reply = make_envelope(envelope.id, MessageType.RESPONSE, "command.run",
                                   {"text": output})
@@ -137,8 +139,15 @@ async def _serve(websocket: WebSocket) -> None:
 
         if envelope.method == "chat.send":
             text = envelope.params.get("text", "")
+            config = load_config()
+            result = send_chat(str(text), config)
+            _add_session_tokens(config, result.tokens_used)
+            save_config(config)
             reply = make_envelope(envelope.id, MessageType.RESPONSE, "chat.send",
-                                  {"text": send_chat(str(text), load_config())})
+                                  {
+                                      "text": result.text,
+                                      "tokens_used": result.tokens_used,
+                                  })
             await websocket.send_text(reply.to_json())
             continue
 
@@ -162,6 +171,11 @@ async def _send_error(
         },
     )
     await websocket.send_text(frame.to_json())
+
+
+def _add_session_tokens(config, tokens_used: int) -> None:
+    session = config.active_session
+    config.token_usage[session] = config.token_usage.get(session, 0) + max(0, tokens_used)
 
 
 class _AnnouncingServer(uvicorn.Server):

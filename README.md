@@ -119,8 +119,9 @@ The shell currently supports 66 commands. The important active ones are:
 Normal chat messages now route through the configured agent provider. If the
 provider reports quota, credit, billing, auth, or rate-limit problems, Citrine
 shows that provider error instead of pretending the message succeeded.
-The prompt footer shows the active provider, active model, and an estimated
-remaining/total context-token meter. Typing `/provider`, `/model`, `/session`,
+The prompt footer shows the active provider, active model, and the current
+session's used/total context-token meter. It uses provider usage data when
+available and falls back to local estimation when needed. Typing `/provider`, `/model`, `/session`,
 or `/agent` opens a clickable popup list instead of dumping choices into the
 response area. `/model` is curated with stronger frontier, reasoning, and coding
 models first, with cheaper fallback models lower in the list.

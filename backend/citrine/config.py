@@ -51,6 +51,7 @@ class CitrineConfig:
     theme: str = "citrine"
     active_session: str = "main"
     sessions: list[str] = field(default_factory=lambda: ["main"])
+    token_usage: dict[str, int] = field(default_factory=dict)
     active_agent: str = "Default"
     agents: list[AgentConfig] = field(default_factory=lambda: [AgentConfig()])
 
@@ -73,6 +74,10 @@ class CitrineConfig:
             theme=str(data.get("theme", "citrine")),
             active_session=str(data.get("active_session", "main")),
             sessions=list(data.get("sessions", ["main"])),
+            token_usage={
+                str(key): int(value)
+                for key, value in data.get("token_usage", {}).items()
+            },
             active_agent=str(data.get("active_agent", "Default")),
             agents=[AgentConfig(**item) for item in data.get("agents", [{"name": "Default"}])],
         )

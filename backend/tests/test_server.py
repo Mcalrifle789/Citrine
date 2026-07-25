@@ -131,6 +131,13 @@ def test_chat_send_reports_missing_provider(client):
         reply = parse_envelope(ws.receive_text())
         assert reply.id == "chat1"
         assert "No model provider" in reply.params["text"]
+        assert reply.params["tokens_used"] > 0
+
+        ws.send_text(json.dumps({"id": "s2", "type": "request",
+                                 "method": "app.status",
+                                 "params": {}}))
+        status = parse_envelope(ws.receive_text())
+        assert status.params["token_used"] == reply.params["tokens_used"]
 
 
 def test_command_run_reports_unknown_commands(client):

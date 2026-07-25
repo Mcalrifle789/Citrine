@@ -236,6 +236,7 @@ def _session_command(arg: str, config: CitrineConfig) -> str:
         )
     if arg not in config.sessions:
         config.sessions.append(arg)
+        config.token_usage[arg] = 0
     config.active_session = arg
     return f"Session switched to {arg}."
 
@@ -248,6 +249,7 @@ def _new_session(config: CitrineConfig) -> str:
     name = f"{base}-{index}"
     config.sessions.append(name)
     config.active_session = name
+    config.token_usage[name] = 0
     return f"New session created: {name}."
 
 
