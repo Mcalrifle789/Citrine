@@ -107,6 +107,7 @@ def test_app_status_reports_defaults(client):
         assert reply.params["provider"] == "Not configured"
         assert reply.params["tokens"] == "--"
         assert reply.params["sessions"] == ["main"]
+        assert "openai/gpt-5" in reply.params["models"]
 
 
 def test_command_run_returns_session_guidance(client):

@@ -31,8 +31,8 @@ test('shell launches, connects, and routes through the Python backend', async ()
 
   await window.getByRole('textbox', { name: 'Citrine prompt' }).fill('/model ')
   await expect(window.getByRole('listbox', { name: 'Command suggestions' })).toBeVisible()
-  await window.getByRole('button', { name: 'openai/gpt-4o', exact: true }).click()
-  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/model openai/gpt-4o')
+  await window.getByRole('button', { name: 'openai/gpt-5', exact: true }).click()
+  await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/model openai/gpt-5')
 
   await window.getByRole('button', { name: 'Insert /session command' }).click()
   await expect(window.getByRole('textbox', { name: 'Citrine prompt' })).toHaveValue('/session ')

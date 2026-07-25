@@ -122,7 +122,8 @@ shows that provider error instead of pretending the message succeeded.
 The prompt footer shows the active provider, active model, and an estimated
 remaining/total context-token meter. Typing `/provider`, `/model`, `/session`,
 or `/agent` opens a clickable popup list instead of dumping choices into the
-response area.
+response area. `/model` is curated with stronger frontier, reasoning, and coding
+models first, with cheaper fallback models lower in the list.
 
 ## Test
 

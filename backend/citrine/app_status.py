@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from citrine.catalog import GENERAL_MODEL_SUGGESTIONS, MODEL_SUGGESTIONS
 from citrine.config import CitrineConfig
 
 
@@ -25,7 +26,7 @@ def app_status(config: CitrineConfig) -> dict[str, object]:
             {"id": item.id, "label": item.label, "model": item.model}
             for item in config.providers
         ],
-        "models": model_suggestions(model),
+        "models": model_suggestions(model, provider.id if provider else None),
     }
 
 
@@ -37,7 +38,9 @@ def token_window_for_model(model: str | None) -> int:
         return 1_000_000
     if "250k" in name or "claude" in name:
         return 250_000
-    if "128k" in name or "gpt-4o" in name or "deepseek" in name:
+    if "200k" in name or "gpt-5" in name or "gpt-4.1" in name:
+        return 200_000
+    if "128k" in name or "gpt-4o" in name or "deepseek" in name or "grok-4" in name:
         return 128_000
     if "32k" in name:
         return 32_000
@@ -52,18 +55,10 @@ def format_tokens(remaining: int, total: int) -> str:
     return f"{_compact(remaining)}/{_compact(total)}"
 
 
-def model_suggestions(active_model: str | None) -> list[str]:
-    suggestions = [
-        "openai/gpt-4o-mini",
-        "openai/gpt-4o",
-        "anthropic/claude-3-5-haiku-latest",
-        "anthropic/claude-3-5-sonnet-latest",
-        "google/gemini-1.5-flash",
-        "google/gemini-1.5-pro",
-        "deepseek/deepseek-chat",
-        "meta-llama/llama-3.1-8b-instant",
-        "mistral/mistral-small-latest",
-    ]
+def model_suggestions(active_model: str | None, provider_id: str | None = None) -> list[str]:
+    suggestions = list(
+        MODEL_SUGGESTIONS.get(provider_id or "", GENERAL_MODEL_SUGGESTIONS)
+    )
     if active_model and active_model not in suggestions:
         return [active_model, *suggestions]
     return suggestions
