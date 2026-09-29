@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Transport, type ConnectionState } from './transport'
 
 /** Minimal scriptable WebSocket double. */
@@ -48,6 +48,70 @@ describe('Transport', () => {
   beforeEach(() => {
     FakeWebSocket.instances = []
     vi.stubGlobal('WebSocket', FakeWebSocket)
+  })
+
+  describe('a request that is never answered', () => {
+    /**
+     * A pending promise that never settles is the worst failure mode here: the
+     * shell disables the prompt for the duration of a turn, so the whole app
+     * looks frozen with nothing on screen explaining why.
+     */
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it('fails once its timeout passes', async () => {
+      const t = new Transport()
+      const { promise, ws } = connectAndAuth(t)
+      await promise
+      const pending = t.request('chat.send', {}, 1000)
+      const settled = expect(pending).rejects.toThrow(/did not answer within 1s/)
+      vi.advanceTimersByTime(1000)
+      await settled
+      expect(ws.sent.length).toBe(2)
+    })
+
+    it('names the method so the log says which call hung', async () => {
+      const t = new Transport()
+      const { promise } = connectAndAuth(t)
+      await promise
+      const pending = t.request('chat.send', {}, 1000)
+      const settled = expect(pending).rejects.toThrow(/chat.send/)
+      vi.advanceTimersByTime(1000)
+      await settled
+    })
+
+    it('does not fail a request that answered in time', async () => {
+      const t = new Transport()
+      const { promise, ws } = connectAndAuth(t)
+      await promise
+      const pending = t.request<{ text: string }>('chat.send', {}, 1000)
+      const id = ws.lastSent.id
+      ws.receive({ id, type: 'response', method: 'chat.send', params: { text: 'hi' } })
+      vi.advanceTimersByTime(60_000)
+      await expect(pending).resolves.toEqual({ text: 'hi' })
+    })
+
+    it('waits indefinitely when the timeout is switched off', async () => {
+      // Streaming turns will need this; a zero has to mean "no deadline"
+      // rather than "deadline already passed".
+      const t = new Transport()
+      const { promise, ws } = connectAndAuth(t)
+      await promise
+      const pending = t.request<{ text: string }>('chat.send', {}, 0)
+      vi.advanceTimersByTime(10_000_000)
+      const id = ws.lastSent.id
+      ws.receive({ id, type: 'response', method: 'chat.send', params: { text: 'late' } })
+      await expect(pending).resolves.toEqual({ text: 'late' })
+    })
+
+    it('still reports a lost connection rather than waiting for the timeout', async () => {
+      const t = new Transport()
+      const { promise, ws } = connectAndAuth(t)
+      await promise
+      const pending = t.request('chat.send', {}, 600_000)
+      ws.onclose?.({ code: 1006 })
+      await expect(pending).rejects.toThrow('Connection lost.')
+    })
   })
 
   it('connects to the loopback address on the given port', async () => {

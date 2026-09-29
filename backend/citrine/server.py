@@ -9,6 +9,7 @@ failures close the socket before any other message is processed.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import secrets
@@ -31,7 +32,6 @@ from citrine.protocol import (
     make_envelope,
     parse_envelope,
 )
-from citrine.tokens import estimate_tokens
 
 log = get_logger("citrine.server")
 
@@ -154,8 +154,15 @@ async def _serve(websocket: WebSocket, workspace: str | None = None) -> None:
         if envelope.method == "command.run":
             text = envelope.params.get("text", "")
             config = load_config()
-            output = run_command(str(text), config)
-            _add_session_tokens(config, estimate_tokens(str(text)) + estimate_tokens(output))
+            # A command can shell out or touch git, which blocks. Run it on a
+            # worker thread so this coroutine stays free to answer the
+            # WebSocket ping - see _run_blocking.
+            output = await _run_blocking(run_command, str(text), config)
+            # Deliberately not charged to the context window. A slash command
+            # runs locally against config and never reaches the model, so it
+            # spends no context - and estimating a charge for it made /new and
+            # /reset report a non-zero count for a conversation with nothing in
+            # it, which is the opposite of what those commands promise.
             save_config(config)
             reply = make_envelope(envelope.id, MessageType.RESPONSE, "command.run",
                                   {"text": output})
@@ -168,8 +175,10 @@ async def _serve(websocket: WebSocket, workspace: str | None = None) -> None:
             if attachments:
                 log.info("chat.send with %s", describe(attachments))
             config = load_config()
-            result = send_chat(str(text), config, attachments, workspace=workspace)
-            _add_session_tokens(config, result.tokens_used)
+            result = await _run_blocking(
+                send_chat, str(text), config, attachments, workspace=workspace
+            )
+            config.add_session_tokens(result.tokens_used)
             save_config(config)
             for step in result.steps:
                 log.info("tool %s ok=%s %s", step.name, step.ok, step.summary)
@@ -211,9 +220,17 @@ async def _send_error(
     await websocket.send_text(frame.to_json())
 
 
-def _add_session_tokens(config, tokens_used: int) -> None:
-    session = config.active_session
-    config.token_usage[session] = config.token_usage.get(session, 0) + max(0, tokens_used)
+async def _run_blocking(func, /, *args, **kwargs):
+    """Run synchronous work on a thread instead of on the event loop.
+
+    ``send_chat`` and ``run_command`` are both blocking: the first makes
+    synchronous HTTP calls to the provider and can legitimately take minutes
+    across tool rounds, the second can shell out. Awaiting them inline stalls
+    this coroutine, and a stalled coroutine cannot answer the WebSocket ping -
+    so uvicorn tears the connection down mid-turn and the user sees the agent
+    time out. Handing the work to a thread is what keeps the socket alive.
+    """
+    return await asyncio.to_thread(lambda: func(*args, **kwargs))
 
 
 class _AnnouncingServer(uvicorn.Server):
@@ -258,8 +275,12 @@ def main() -> None:
     app = create_app(token=token, allowed_origins=set(args.origin),
                      workspace=args.workspace)
 
+    # A turn can legitimately run for minutes across tool rounds. The default
+    # 20s pong deadline would drop the socket in the middle of one, so the
+    # client is given a full turn budget to answer before being declared gone.
     config = uvicorn.Config(app, host=args.host, port=args.port,
-                            log_config=None, access_log=False)
+                            log_config=None, access_log=False,
+                            ws_ping_interval=20.0, ws_ping_timeout=300.0)
     _AnnouncingServer(config).run()
 
 

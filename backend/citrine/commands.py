@@ -133,6 +133,8 @@ def run_command(raw: str, config: CitrineConfig | None = None) -> str:
         return _session_command(arg, cfg)
     if head == "new":
         return _new_session(cfg)
+    if head == "reset":
+        return _reset_command(cfg)
     if head == "agent":
         return _agent_command(arg, cfg)
     if head == "status":
@@ -237,7 +239,8 @@ def _model_command(arg: str, config: CitrineConfig) -> str:
             f"Current model: {agent.model or provider.model or 'not set'}\n"
             "Use /model <model-name> to switch."
         )
-    provider.model = arg
+    # Only the agent's model moves. Writing it onto the provider as well would
+    # silently change the model of every other agent that has not picked one.
     agent.provider_id = provider.id
     agent.model = arg
     return f"Model switched to {arg} for agent {agent.name}."
@@ -249,23 +252,62 @@ def _session_command(arg: str, config: CitrineConfig) -> str:
             f"{'*' if session == config.active_session else ' '} /session {session}"
             for session in config.sessions
         )
-    if arg not in config.sessions:
+    if arg == config.active_session:
+        return f"Already on session {arg}."
+    fresh = arg not in config.sessions
+    if fresh:
         config.sessions.append(arg)
-        config.token_usage[arg] = 0
     config.active_session = arg
-    return f"Session switched to {arg}."
+    if fresh:
+        # A session that has never been used starts at zero rather than
+        # inheriting whatever the previous one had spent.
+        config.reset_session_tokens()
+    return (
+        f"Session switched to {arg}.\n"
+        f"Agent {config.active_agent} - {config.session_tokens()} tokens "
+        "used in this session."
+    )
 
 
 def _new_session(config: CitrineConfig) -> str:
+    """``/new`` - a genuinely empty conversation.
+
+    The transcript is keyed on agent, session and epoch, so moving to an unused
+    session name is what blanks the window in the renderer. Zeroing the usage
+    bucket is what makes the token readout start from nothing again.
+    """
+    name = _unused_session_name(config)
+    config.sessions.append(name)
+    config.active_session = name
+    config.reset_session_tokens()
+    agent = config.active_agent_config()
+    return (
+        f"New session created: {name}.\n"
+        f"Agent {agent.name} - {agent.model or 'no model selected'}. "
+        "Tokens reset to 0."
+    )
+
+
+def _unused_session_name(config: CitrineConfig) -> str:
     base = "session"
     index = 1
     while f"{base}-{index}" in config.sessions:
         index += 1
-    name = f"{base}-{index}"
-    config.sessions.append(name)
-    config.active_session = name
-    config.token_usage[name] = 0
-    return f"New session created: {name}."
+    return f"{base}-{index}"
+
+
+def _reset_command(config: CitrineConfig) -> str:
+    """``/reset`` - clear the current session in place.
+
+    Unlike ``/new`` this keeps the session name, so the epoch has to move for
+    the renderer to notice that the scrollback is no longer valid.
+    """
+    config.transcript_epoch += 1
+    config.reset_session_tokens()
+    return (
+        f"Session {config.active_session} reset. Transcript cleared and "
+        "token count back to 0."
+    )
 
 
 def _agent_command(arg: str, config: CitrineConfig) -> str:
@@ -276,8 +318,17 @@ def _agent_command(arg: str, config: CitrineConfig) -> str:
         ) + "\nUse /agent <name> to switch or create."
     for agent in config.agents:
         if agent.name.lower() == arg.lower():
+            if agent.name == config.active_agent:
+                return f"Already on agent {agent.name}."
             config.active_agent = agent.name
-            return f"Agent switched to {agent.name}."
+            # Each agent keeps its own usage bucket per session, so the count
+            # reported here is that agent's, not the one we just left.
+            return (
+                f"Agent switched to {agent.name} "
+                f"({agent.model or 'no model selected'}).\n"
+                f"Session {config.active_session} - {config.session_tokens()} "
+                "tokens used by this agent."
+            )
     provider = config.active_provider()
     model = provider.model if provider else None
     config.agents.append(
@@ -288,7 +339,8 @@ def _agent_command(arg: str, config: CitrineConfig) -> str:
         )
     )
     config.active_agent = arg
-    return f"Agent created: {arg} ({model or 'no model selected'})."
+    config.reset_session_tokens()
+    return f"Agent created: {arg} ({model or 'no model selected'}). Tokens start at 0."
 
 
 def _workspace(arg: str) -> Path:
@@ -490,6 +542,7 @@ def _status(config: CitrineConfig) -> str:
             f"Session: {config.active_session}",
             f"Provider: {provider.label if provider else 'not configured'}",
             f"Model: {agent.model or (provider.model if provider else None) or 'not set'}",
+            f"Tokens this session: {config.session_tokens()}",
             f"Search: {config.search_provider.label if config.search_provider else 'not configured'}",
             f"Theme: {config.theme}",
             f"Tools: {'on' if config.tools.enabled else 'off'}",

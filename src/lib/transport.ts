@@ -22,10 +22,21 @@ export interface StreamHandlers {
 interface Pending {
   resolve: (value: never) => void
   reject: (reason: Error) => void
+  timer?: ReturnType<typeof setTimeout>
 }
 
 const RECONNECT_BASE_MS = 300
 const RECONNECT_MAX_MS = 5000
+
+/**
+ * How long a request may stay outstanding before it is failed locally.
+ *
+ * Without this a backend that never answers leaves the promise pending
+ * forever, and the UI that awaited it stays disabled with no explanation. The
+ * default is deliberately longer than the backend's own turn budget so the
+ * backend's own message wins the race whenever it can.
+ */
+const DEFAULT_TIMEOUT_MS = 660_000
 
 /**
  * WebSocket client for the Citrine backend.
@@ -47,6 +58,14 @@ export class Transport {
 
   onStateChange(cb: (s: ConnectionState) => void): void {
     this.listeners.push(cb)
+  }
+
+  private settle(id: string): Pending | undefined {
+    const pending = this.pending.get(id)
+    if (!pending) return undefined
+    if (pending.timer !== undefined) clearTimeout(pending.timer)
+    this.pending.delete(id)
+    return pending
   }
 
   getState(): ConnectionState {
@@ -142,7 +161,7 @@ export class Transport {
       return
     }
 
-    const pending = this.pending.get(envelope.id)
+    const pending = this.settle(envelope.id)
     if (!pending) {
       // Could also be a terminal error for a stream.
       const handlers = this.streams.get(envelope.id)
@@ -153,7 +172,6 @@ export class Transport {
       return
     }
 
-    this.pending.delete(envelope.id)
     if (envelope.type === 'error') {
       const message = String(envelope.params.message ?? 'Backend error')
       const correlation = envelope.params.correlation_id
@@ -167,7 +185,10 @@ export class Transport {
 
   private handleUnexpectedClose(): void {
     const error = new Error('Connection lost.')
-    for (const [, pending] of this.pending) pending.reject(error)
+    for (const [, pending] of this.pending) {
+      if (pending.timer !== undefined) clearTimeout(pending.timer)
+      pending.reject(error)
+    }
     this.pending.clear()
     for (const [, handlers] of this.streams) {
       handlers.onError({ code: 'network', message: 'Connection lost.', correlation_id: '' })
@@ -193,13 +214,29 @@ export class Transport {
     }, delay)
   }
 
-  request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  request<T>(
+    method: string,
+    params: Record<string, unknown> = {},
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  ): Promise<T> {
     if (!this.socket || this.state !== 'open') {
       return Promise.reject(new Error('Not connected to the Citrine backend.'))
     }
     const id = nextId('req')
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject } as unknown as Pending)
+      const timer =
+        timeoutMs > 0
+          ? setTimeout(() => {
+              this.pending.delete(id)
+              reject(
+                new Error(
+                  `${method} did not answer within ${Math.round(timeoutMs / 1000)}s. ` +
+                    'The backend may be stuck; check the backend log.',
+                ),
+              )
+            }, timeoutMs)
+          : undefined
+      this.pending.set(id, { resolve, reject, timer } as unknown as Pending)
       this.socket!.send(JSON.stringify({ id, type: 'request', method, params }))
     })
   }
@@ -230,6 +267,9 @@ export class Transport {
 
   close(): void {
     this.intentionalClose = true
+    for (const [, pending] of this.pending) {
+      if (pending.timer !== undefined) clearTimeout(pending.timer)
+    }
     this.socket?.close()
     this.socket = null
     this.setState('closed')

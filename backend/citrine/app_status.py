@@ -12,7 +12,9 @@ def app_status(config: CitrineConfig) -> dict[str, object]:
     agent = config.active_agent_config()
     model = agent.model or (provider.model if provider else None)
     total_tokens = context_window_for_model(model)
-    used_tokens = config.token_usage.get(config.active_session, 0)
+    # Per agent *and* session: switching agents switches model, and a count
+    # measured against a different context window is a different number.
+    used_tokens = config.session_tokens()
     return {
         "provider": provider.label if provider else "Not configured",
         "provider_id": provider.id if provider else None,
@@ -22,6 +24,10 @@ def app_status(config: CitrineConfig) -> dict[str, object]:
         "token_total": total_tokens,
         "session": config.active_session,
         "sessions": config.sessions,
+        # The renderer keys its scrollback on this and blanks the window when it
+        # changes, which is what makes /new, /session, /agent and /reset start a
+        # visibly fresh conversation.
+        "transcript_key": config.transcript_key(),
         "agent": agent.name,
         "agents": [item.name for item in config.agents],
         "providers": [

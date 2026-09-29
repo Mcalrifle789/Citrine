@@ -21,6 +21,7 @@ Two things the loop has to get right:
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -124,6 +125,12 @@ def send_chat(
     context = tools.build_context(cfg, workspace)
     tool_specs = tools.specs(context) if cfg.tools.enabled else []
 
+    # One HTTP call, and the whole turn. Without the second bound a turn is
+    # limited only by max_rounds * request_timeout, which is long enough that
+    # the user reasonably concludes the agent has hung.
+    request_timeout = max(30, int(cfg.request_timeout_s or 180))
+    deadline = time.monotonic() + max(request_timeout, int(cfg.turn_budget_s or 600))
+
     turn = _Turn()
     messages = [
         {"role": "system", "content": _system_prompt(context)},
@@ -135,7 +142,11 @@ def send_chat(
     allow_tools = bool(tool_specs)
     allow_images = _has_images(files)
 
-    for _ in range(max_rounds):
+    for round_index in range(max_rounds):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return _out_of_time(turn, round_index)
+
         payload = {
             "model": model,
             "messages": messages,
@@ -145,14 +156,15 @@ def send_chat(
             payload["tools"] = tool_specs
             payload["tool_choice"] = "auto"
 
-        data, error = _post(url, api_key, payload, provider.label)
+        timeout = min(request_timeout, max(5.0, remaining))
+        data, error = _post(url, api_key, payload, provider.label, timeout)
 
         if error is not None and _rejects_images(error) and allow_images:
             # The model cannot take image parts. Re-send without them and tell
             # the user once that the files were described rather than seen.
             allow_images = False
             messages[1]["content"] = _user_content(message, files, images=False)
-            data, error = _post(url, api_key, payload, provider.label)
+            data, error = _post(url, api_key, payload, provider.label, timeout)
             if error is not None:
                 return _failed(error, turn)
 
@@ -160,7 +172,7 @@ def send_chat(
             allow_tools = False
             payload.pop("tools", None)
             payload.pop("tool_choice", None)
-            data, error = _post(url, api_key, payload, provider.label)
+            data, error = _post(url, api_key, payload, provider.label, timeout)
 
         if error is not None:
             return _failed(error, turn)
@@ -253,8 +265,24 @@ def _has_images(files: list[Attachment]) -> bool:
     return bool(image_parts(files))
 
 
+def _out_of_time(turn: _Turn, rounds_done: int) -> ChatResult:
+    """The turn budget expired between rounds."""
+    ran = ", ".join(step.name for step in turn.steps) or "nothing"
+    return ChatResult(
+        f"I ran out of time for this turn after {rounds_done} round(s) of tool "
+        f"calls. Tools used: {ran}. Raise turn_budget_s in the Citrine config "
+        "if this work legitimately needs longer.",
+        turn.tokens,
+        tuple(turn.steps),
+    )
+
+
 def _post(
-    url: str, api_key: str, payload: dict, label: str = "provider"
+    url: str,
+    api_key: str,
+    payload: dict,
+    label: str = "provider",
+    timeout: float = 180.0,
 ) -> tuple[dict | None, str | None]:
     """One provider request. Returns (data, error_text) - never raises."""
     request = urllib.request.Request(
@@ -269,15 +297,28 @@ def _post(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8")), None
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         return None, _provider_error(label, exc.code, body)
     except urllib.error.URLError as exc:
+        # A read timeout arrives here rather than as TimeoutError on some
+        # Python/OpenSSL builds, and "network error: timed out" reads like the
+        # machine is offline when it is not.
+        if isinstance(exc.reason, TimeoutError):
+            return None, (
+                f"{label} did not respond within {timeout:.0f}s. The model may "
+                "still be generating; try again, pick a faster model, or raise "
+                "request_timeout_s in the Citrine config."
+            )
         return None, f"{label} network error: {exc.reason}"
     except TimeoutError:
-        return None, f"{label} timed out while generating a response."
+        return None, (
+            f"{label} did not respond within {timeout:.0f}s. The model may still "
+            "be generating; try again, pick a faster model, or raise "
+            "request_timeout_s in the Citrine config."
+        )
     except json.JSONDecodeError as exc:
         return None, f"{label} returned malformed JSON: {exc}"
 

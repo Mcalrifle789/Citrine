@@ -24,11 +24,16 @@ interface AppStatus {
   token_total: number
   session: string
   sessions: string[]
+  /** Identity of the transcript: agent, session and reset epoch. */
+  transcript_key?: string
   agent: string
   agents: string[]
   providers: Array<{ id: string; label: string; model?: string | null }>
   models: string[]
 }
+
+/** app.status is a config read; if it takes this long something is wrong. */
+const STATUS_TIMEOUT_MS = 30_000
 
 const CONNECTION_LABEL: Record<string, [string, Segment['tone']]> = {
   idle: ['connecting…', 'dim'],
@@ -48,7 +53,7 @@ export function AppShell() {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [pendingFiles, setPendingFiles] = useState<string[] | null>(null)
   const scrollbackRef = useRef<HTMLDivElement>(null)
-  const { connection, lines, addLine, setConnection } = useAppStore()
+  const { connection, lines, addLine, setConnection, switchTranscript } = useAppStore()
 
   // dragenter and dragleave both fire when the pointer crosses a *child*
   // boundary, so a boolean flickers the overlay off mid-drag. Counting the
@@ -59,9 +64,15 @@ export function AppShell() {
   const refreshStatus = useCallback(
     async (client: Transport | null = transport.current): Promise<void> => {
       if (!client || client.getState() !== 'open') return
-      setAppStatus(await client.request<AppStatus>(METHODS.appStatus))
+      const status = await client.request<AppStatus>(METHODS.appStatus, {}, STATUS_TIMEOUT_MS)
+      setAppStatus(status)
+      // The backend owns which conversation is active. A different key means a
+      // different conversation, so the window follows it — that is what makes
+      // /new, /session, /agent and /reset start from a blank scrollback
+      // instead of carrying the previous session's lines forward.
+      if (status.transcript_key) switchTranscript(status.transcript_key)
     },
-    [],
+    [switchTranscript],
   )
 
   useEffect(() => {
@@ -116,9 +127,13 @@ export function AppShell() {
       if (!isCommand && sent.length > 0) params.attachments = toWire(sent)
 
       const result = await transport.current!.request<{ text: string }>(method, params)
-      addLine('output', result.text)
       maybeApplyCommandSideEffect(value)
+      // Status first: a command like /new changes which transcript is active,
+      // and the reply ("New session created…") belongs to the new one. Doing
+      // it the other way round files the confirmation under the session the
+      // user just left, where they will never see it.
       await refreshStatus()
+      addLine('output', result.text)
     } catch (error) {
       addLine('error', error instanceof Error ? error.message : String(error))
     } finally {

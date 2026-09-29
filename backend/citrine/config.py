@@ -84,10 +84,24 @@ class CitrineConfig:
     theme: str = "citrine"
     active_session: str = "main"
     sessions: list[str] = field(default_factory=lambda: ["main"])
+    # Keyed by ``usage_key(agent, session)``, not by session alone: an agent
+    # switch usually changes the model, and a token count measured against a
+    # different context window is not the same number. See usage_key().
     token_usage: dict[str, int] = field(default_factory=dict)
     active_agent: str = "Default"
     agents: list[AgentConfig] = field(default_factory=lambda: [AgentConfig()])
     tools: ToolsConfig = field(default_factory=ToolsConfig)
+    # Bumped whenever the visible transcript should be thrown away without the
+    # agent or session name changing (``/reset``). The renderer keys its
+    # scrollback on transcript_key(), so a bump blanks the window.
+    transcript_epoch: int = 0
+    # One provider HTTP call. Reasoning models routinely spend more than a
+    # minute on a single completion, so this is well above urllib's default.
+    request_timeout_s: int = 180
+    # Wall clock for a whole turn, tool rounds included. Without it a turn is
+    # bounded only by max_rounds * request_timeout_s, which is long enough to
+    # look like a hang.
+    turn_budget_s: int = 600
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CitrineConfig":
@@ -108,13 +122,15 @@ class CitrineConfig:
             theme=str(data.get("theme", "citrine")),
             active_session=str(data.get("active_session", "main")),
             sessions=list(data.get("sessions", ["main"])),
-            token_usage={
-                str(key): int(value)
-                for key, value in data.get("token_usage", {}).items()
-            },
+            token_usage=_usage_from_dict(
+                data.get("token_usage"), str(data.get("active_agent", "Default"))
+            ),
             active_agent=str(data.get("active_agent", "Default")),
             agents=[AgentConfig(**item) for item in data.get("agents", [{"name": "Default"}])],
             tools=_tools_from_dict(data.get("tools")),
+            transcript_epoch=_non_negative_int(data.get("transcript_epoch"), 0),
+            request_timeout_s=_non_negative_int(data.get("request_timeout_s"), 180),
+            turn_budget_s=_non_negative_int(data.get("turn_budget_s"), 600),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -133,6 +149,68 @@ class CitrineConfig:
         agent = AgentConfig(name=self.active_agent)
         self.agents.append(agent)
         return agent
+
+    def usage_key(self) -> str:
+        """The token-usage bucket for the active agent and session."""
+        return usage_key(self.active_agent, self.active_session)
+
+    def session_tokens(self) -> int:
+        return self.token_usage.get(self.usage_key(), 0)
+
+    def add_session_tokens(self, tokens: int, key: str | None = None) -> None:
+        """Charge ``tokens`` to a usage bucket, the active one by default.
+
+        ``key`` exists for work that changes which bucket is active while it
+        runs: ``/new`` has to be charged to the session it was typed in, or it
+        lands on the session it just created and undoes its own reset.
+        """
+        bucket = key or self.usage_key()
+        self.token_usage[bucket] = self.token_usage.get(bucket, 0) + max(0, tokens)
+
+    def reset_session_tokens(self) -> None:
+        self.token_usage[self.usage_key()] = 0
+
+    def transcript_key(self) -> str:
+        """Identity of the visible scrollback.
+
+        The renderer clears and re-keys its transcript whenever this string
+        changes, so a new session, a session switch, an agent switch, and
+        ``/reset`` all blank the window without needing their own protocol
+        message.
+        """
+        return f"{self.usage_key()}#{self.transcript_epoch}"
+
+
+def usage_key(agent: str, session: str) -> str:
+    """Bucket name for one agent's usage within one session."""
+    return f"{agent}::{session}"
+
+
+def _non_negative_int(value: Any, default: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return default
+    return max(0, value)
+
+
+def _usage_from_dict(data: Any, active_agent: str) -> dict[str, int]:
+    """Read stored token usage, migrating pre-agent keys.
+
+    Older builds keyed usage by session name alone. Those counts are attributed
+    to the agent that was active when the file was written, which is the only
+    agent they could have belonged to on a single-agent config and a harmless
+    guess otherwise - the alternative is silently dropping the user's usage.
+    """
+    if not isinstance(data, dict):
+        return {}
+    usage: dict[str, int] = {}
+    for key, value in data.items():
+        if isinstance(value, bool) or not isinstance(value, int):
+            continue
+        name = str(key)
+        if "::" not in name:
+            name = usage_key(active_agent, name)
+        usage[name] = max(0, value)
+    return usage
 
 
 def _tools_from_dict(data: Any) -> ToolsConfig:

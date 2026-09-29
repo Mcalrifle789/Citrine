@@ -29,6 +29,7 @@ const STATUS = {
   token_total: 128000,
   session: 'main',
   sessions: ['main'],
+  transcript_key: 'Default::main#0',
   agent: 'Default',
   agents: ['Default'],
   providers: [{ id: 'custom', label: 'OpenRouter', model: 'openai/gpt-4o-mini' }],

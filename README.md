@@ -214,13 +214,14 @@ final review screen is confirmed.
 
 ## Slash Commands
 
-The shell currently supports 66 commands. The important active ones are:
+The shell currently supports 67 commands. The important active ones are:
 
 - `/theme` — list six dark themes: `citrine`, `midnight`, `ember`, `matrix`,
   `violet`, and `mono`; use `/theme matrix` to switch.
 - `/model` — show or switch the active agent model.
 - `/session` — show or switch sessions.
 - `/new` — create and switch to a new session.
+- `/reset` — clear the current session in place, keeping its name.
 - `/provider` — show or switch configured model providers.
 - `/agent` — switch to an agent or create one using the current provider/model.
 
@@ -233,6 +234,32 @@ available and falls back to local estimation when needed. Typing `/provider`, `/
 or `/agent` opens a clickable popup list instead of dumping choices into the
 response area. `/model` is curated with stronger frontier, reasoning, and coding
 models first, with cheaper fallback models lower in the list.
+
+### Sessions, agents, and the context meter
+
+A conversation is identified by the active agent, the active session, and a
+reset counter. The backend reports that identity as `transcript_key` in
+`app.status`, and the renderer keys its scrollback on it, so `/new`, `/session`,
+`/agent`, and `/reset` each start from a blank window. Switching back to a
+session you used earlier brings its lines back rather than discarding them.
+
+The context meter is scoped the same way: usage is tracked per agent *per*
+session, because switching agent switches model, and a count measured against a
+different context window is not the same number. Slash commands run locally
+against config and never reach the model, so they do not spend context.
+
+### Turn timeouts
+
+Three settings in `~\.citrine\config.json` bound how long a turn may take:
+
+- `request_timeout_s` (default 180) — one provider HTTP call.
+- `turn_budget_s` (default 600) — the whole turn, tool rounds included. Never
+  cuts a turn below one full provider call.
+- `tools.max_rounds` (default 8) — how many tool rounds a turn may use.
+
+The turn itself runs on a worker thread so the backend keeps answering the
+WebSocket keepalive while the model is generating; without that a long turn
+looks to the client like a dropped connection.
 
 ## Test
 
