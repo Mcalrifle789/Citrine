@@ -1,4 +1,13 @@
+/*
+ * The shell layout.
+ *
+ * The command rail is gone: the catalog now lives behind the "/" menu, where
+ * it is reachable without permanently spending a fifth of the window on a list
+ * nobody reads twice. What is left is header, transcript, status, prompt — the
+ * transcript gets the room.
+ */
 .ct-app {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   height: 100%;
@@ -25,109 +34,32 @@
   font-weight: 500;
 }
 
-.ct-app__body {
-  display: grid;
-  grid-template-columns: var(--rail-w) 1fr;
-  gap: var(--sp-4);
-  min-height: 0;
-}
-.ct-app__rail {
+/* Agent, session and model moved here when the rail's Status panel went. */
+.ct-app__meta {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-  overflow: auto;
-  /* The inset title sits half above its panel's top edge, and this is a
-     scroll container — without room to spill into, the first panel's title
-     is clipped. */
-  padding-top: var(--sp-2);
+  gap: var(--sp-2);
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
 }
+.ct-chip {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  border: var(--border-w) solid color-mix(in srgb, var(--c-border) 70%, transparent);
+  padding: var(--sp-1) var(--sp-2);
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--c-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-chip__key {
+  color: var(--c-text-dim);
+}
+
 .ct-app__main {
   min-height: 0;
-}
-
-.ct-cmdlist,
-.ct-empty__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.ct-cmdlist li {
-  margin: 0 0 var(--sp-1);
-}
-.ct-cmdlist__button {
-  position: relative;
-  display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: var(--sp-2);
-  width: 100%;
-  min-height: 30px;
-  align-items: center;
-  border: var(--border-w) solid transparent;
-  padding: var(--sp-1) var(--sp-2);
-  overflow: hidden;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
-}
-.ct-cmdlist__button::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--c-accent) 16%, transparent), transparent 68%),
-    linear-gradient(180deg, transparent, color-mix(in srgb, var(--c-accent-glow) 9%, transparent), transparent);
-  opacity: 0;
-  transform: translateX(-18%);
-  transition:
-    opacity 180ms ease,
-    transform 220ms ease;
-  pointer-events: none;
-}
-.ct-cmdlist__button:hover,
-.ct-cmdlist__button:focus-visible {
-  border-color: color-mix(in srgb, var(--c-accent) 38%, transparent);
-  background: color-mix(in srgb, var(--c-accent) 7%, transparent);
-  transform: translateX(3px);
-}
-.ct-cmdlist__button:hover::before,
-.ct-cmdlist__button:focus-visible::before {
-  opacity: 1;
-  transform: translateX(0);
-}
-.ct-cmdlist__button:active {
-  transform: translateX(1px);
-}
-.ct-cmdlist__button:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 var(--border-w) var(--c-accent);
-}
-.ct-cmdlist__name {
-  position: relative;
-  color: var(--c-accent);
-  text-shadow: none;
-  transition: text-shadow 160ms ease;
-}
-.ct-cmdlist__desc {
-  position: relative;
-  color: var(--c-text);
-}
-.ct-cmdlist__button:hover .ct-cmdlist__name,
-.ct-cmdlist__button:focus-visible .ct-cmdlist__name {
-  text-shadow: var(--glow-accent);
-}
-
-.ct-status {
-  color: var(--c-text);
-}
-.ct-accent {
-  color: var(--c-accent);
 }
 
 .ct-scrollback {
@@ -147,8 +79,21 @@
 .ct-line[data-kind='error'] {
   color: var(--c-err);
 }
+.ct-line__files {
+  color: var(--c-gold);
+}
 
-/* Empty state */
+.ct-accent {
+  color: var(--c-accent);
+}
+
+/* ------------------------------------------------------------ empty state */
+
+.ct-empty__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .ct-empty__wordmark {
   display: block;
   width: min(560px, 70%);
@@ -170,15 +115,181 @@
   grid-template-columns: 24px 90px 1fr;
   align-items: baseline;
 }
-.ct-empty__star {
-  color: var(--c-accent);
-}
+.ct-empty__star,
 .ct-empty__cmd {
   color: var(--c-accent);
 }
 .ct-empty__desc {
   color: var(--c-text);
 }
+.ct-empty__hint {
+  color: var(--c-text-dim);
+  margin: var(--sp-4) 0 0;
+}
+.ct-empty__key {
+  border: var(--border-w) solid var(--c-border);
+  padding: 0 var(--sp-1);
+  color: var(--c-accent);
+}
+
+/* ------------------------------------------------------- thinking indicator */
+
+.ct-thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-2) 0;
+  color: var(--c-text-dim);
+  animation: ct-line-in 180ms ease-out both;
+}
+
+/* A small orbital system: two rings at different speeds around a pulsing
+   core. It carries no information, which is the point — it says "working",
+   and a fake progress bar would say something untrue. */
+.ct-thinking__orb {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.ct-thinking__ring {
+  position: absolute;
+  inset: 0;
+  border: var(--border-w) solid transparent;
+  border-top-color: var(--c-accent);
+  border-radius: 50%;
+  animation: ct-spin 1100ms linear infinite;
+}
+.ct-thinking__ring:nth-child(2) {
+  inset: 4px;
+  border-top-color: transparent;
+  border-bottom-color: var(--c-gold);
+  animation-duration: 1700ms;
+  animation-direction: reverse;
+}
+.ct-thinking__core {
+  position: absolute;
+  inset: 7px;
+  background: var(--c-accent);
+  border-radius: 50%;
+  box-shadow: var(--glow-accent);
+  animation: ct-pulse 1400ms ease-in-out infinite;
+}
+
+.ct-thinking__label {
+  color: var(--c-accent);
+}
+.ct-thinking__dots i {
+  display: inline-block;
+  width: 4px;
+  font-style: normal;
+  animation: ct-dot 1200ms ease-in-out infinite;
+}
+.ct-thinking__dots i::before {
+  content: '.';
+}
+.ct-thinking__dots i:nth-child(2) {
+  animation-delay: 200ms;
+}
+.ct-thinking__dots i:nth-child(3) {
+  animation-delay: 400ms;
+}
+
+.ct-thinking__files {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.ct-thinking__file {
+  border: var(--border-w) solid color-mix(in srgb, var(--c-gold) 45%, transparent);
+  padding: 0 var(--sp-2);
+  color: var(--c-gold);
+}
+.ct-thinking__elapsed {
+  margin-left: auto;
+  color: var(--c-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ attachments */
+
+.ct-attachments {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: 0 var(--sp-4) var(--sp-2);
+}
+.ct-attachment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  border: var(--border-w) solid color-mix(in srgb, var(--c-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--c-accent) 8%, transparent);
+  padding: var(--sp-1) var(--sp-2);
+}
+.ct-attachment[data-unreadable] {
+  border-color: color-mix(in srgb, var(--c-gold) 45%, transparent);
+  background: color-mix(in srgb, var(--c-gold) 8%, transparent);
+}
+.ct-attachment__name {
+  color: var(--c-accent);
+}
+.ct-attachment[data-unreadable] .ct-attachment__name {
+  color: var(--c-gold);
+}
+.ct-attachment__size {
+  color: var(--c-text-dim);
+}
+.ct-attachment__remove {
+  border: 0;
+  padding: 0 var(--sp-1);
+  background: transparent;
+  color: var(--c-text-dim);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.ct-attachment__remove:hover,
+.ct-attachment__remove:focus-visible {
+  outline: none;
+  color: var(--c-err);
+}
+
+/* --------------------------------------------------------------- dropzone */
+
+.ct-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--c-bg) 78%, transparent);
+  /* The overlay must not eat the drop event it is advertising. */
+  pointer-events: none;
+  animation: ct-line-in 120ms ease-out both;
+}
+.ct-dropzone__inner {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: center;
+  border: var(--border-w) dashed var(--c-accent);
+  padding: var(--sp-5) calc(var(--sp-5) * 2);
+  background: var(--c-panel);
+  box-shadow: var(--glow-accent);
+}
+.ct-dropzone__title {
+  color: var(--c-accent);
+  font-size: 18px;
+  font-weight: 700;
+  text-shadow: var(--glow-accent);
+}
+.ct-dropzone__hint {
+  color: var(--c-text-dim);
+}
+
+/* --------------------------------------------------------------- keyframes */
 
 @keyframes ct-shell-in {
   from {
@@ -213,22 +324,52 @@
   }
 }
 
+@keyframes ct-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ct-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes ct-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.2;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ct-app,
   .ct-line,
+  .ct-thinking,
+  .ct-dropzone,
   .ct-empty__wordmark {
     animation: none;
   }
 
-  .ct-cmdlist__button,
-  .ct-cmdlist__button::before,
-  .ct-cmdlist__name {
-    transition: none;
+  /* The indicator still has to read as "running", so it keeps a slow pulse
+     rather than freezing into something indistinguishable from a stall. */
+  .ct-thinking__ring {
+    animation: none;
+    border-top-color: var(--c-accent);
   }
-
-  .ct-cmdlist__button:hover,
-  .ct-cmdlist__button:focus-visible,
-  .ct-cmdlist__button:active {
-    transform: none;
+  .ct-thinking__core,
+  .ct-thinking__dots i {
+    animation-duration: 2400ms;
   }
 }

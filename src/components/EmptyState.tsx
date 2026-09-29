@@ -32,6 +32,14 @@ export function EmptyState() {
           </li>
         ))}
       </ul>
+      {/*
+        The command rail is gone, so the two ways to reach everything else have
+        to be stated somewhere. This is the one screen guaranteed to be read.
+      */}
+      <p className="ct-empty__hint">
+        Press <span className="ct-empty__key">/</span> for the full command list, or drop
+        a file anywhere in this window to send it along with your message.
+      </p>
     </div>
   )
 }

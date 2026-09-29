@@ -102,7 +102,7 @@ describe('Prompt', () => {
     expect(screen.getByText('OpenAI · gpt-4o-mini · 128k/128k').textContent).toBe(
       'OpenAI · gpt-4o-mini · 128k/128k',
     )
-    await user.click(screen.getByRole('button', { name: 'gpt-4o' }))
+    await user.click(screen.getByRole('option', { name: 'gpt-4o' }))
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('/model gpt-4o')
   })
 })
