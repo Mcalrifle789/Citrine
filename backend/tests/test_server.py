@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from citrine.commands import COMMANDS
 from citrine.protocol import MessageType, parse_envelope
 from citrine.server import create_app
 
@@ -14,6 +15,12 @@ ORIGIN = "http://localhost:5173"
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("CITRINE_HOME", str(tmp_path / "home"))
+    # Commands like /init and /github resolve paths against the working
+    # directory, so the suite runs from a scratch directory. Without this a
+    # test that exercises them scaffolds a git repository into the source tree.
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
     app = create_app(token=TOKEN, allowed_origins={ORIGIN})
     return TestClient(app)
 
@@ -166,3 +173,81 @@ def test_unknown_method_returns_an_error_frame_without_closing(client):
         ws.send_text(json.dumps({"id": "e3", "type": "request", "method": "echo",
                                  "params": {"text": "still here"}}))
         assert parse_envelope(ws.receive_text()).params["text"] == "still here"
+
+
+def test_app_commands_serves_the_backend_registry(client):
+    """The renderer's "/" menu is built from this rather than a second copy,
+    so it cannot offer a command the backend does not implement."""
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "k1", "type": "request",
+                                 "method": "app.commands", "params": {}}))
+        reply = parse_envelope(ws.receive_text())
+
+        assert reply.id == "k1"
+        commands = reply.params["commands"]
+        assert len(commands) == len(COMMANDS)
+        assert {"name", "description"} == set(commands[0])
+
+
+def test_every_advertised_command_is_handled(client):
+    """The menu offers all of these, so none of them may fall through to the
+    unknown-command reply."""
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        for index, command in enumerate(COMMANDS):
+            ws.send_text(json.dumps({"id": f"h{index}", "type": "request",
+                                     "method": "command.run",
+                                     "params": {"text": f"/{command.name}"}}))
+            reply = parse_envelope(ws.receive_text())
+            assert "Unknown command" not in reply.params["text"], command.name
+
+
+def test_chat_send_accepts_attachments(client):
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({
+            "id": "f1", "type": "request", "method": "chat.send",
+            "params": {
+                "text": "explain this",
+                "attachments": [{"name": "main.py", "size": 12, "mime": "text/x-python",
+                                 "text": "print(1)", "truncated": False}],
+            },
+        }))
+        reply = parse_envelope(ws.receive_text())
+        assert reply.id == "f1"
+        assert reply.type is MessageType.RESPONSE
+
+
+def test_a_malformed_attachment_does_not_break_the_turn(client):
+    """A bad attachment should cost the user that file, not their message."""
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({
+            "id": "f2", "type": "request", "method": "chat.send",
+            "params": {"text": "still works", "attachments": "not a list"},
+        }))
+        reply = parse_envelope(ws.receive_text())
+        assert reply.type is MessageType.RESPONSE
+        assert "provider" in reply.params["text"].lower()
+
+
+def test_a_bare_init_does_not_create_anything(client, tmp_path):
+    """/init writes to disk and runs git. A bare verb must not do that to
+    whatever directory the backend happened to be started in."""
+    workspace = tmp_path / "workspace"
+    with client.websocket_connect("/ws", headers={"origin": ORIGIN}) as ws:
+        ws.send_text(_auth_frame())
+        ws.receive_text()
+        ws.send_text(json.dumps({"id": "i1", "type": "request",
+                                 "method": "command.run",
+                                 "params": {"text": "/init"}}))
+        reply = parse_envelope(ws.receive_text())
+
+        assert "Usage" in reply.params["text"]
+        assert not (workspace / ".git").exists()
+        assert list(workspace.iterdir()) == []

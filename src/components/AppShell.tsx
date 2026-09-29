@@ -1,13 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Frame } from './terminal/Frame'
-import { Panel } from './terminal/Panel'
-import { Prompt } from './terminal/Prompt'
+import { Prompt, type PromptCommand, type PromptOption } from './terminal/Prompt'
 import { StatusBar, type Segment } from './terminal/StatusBar'
 import { EmptyState } from './EmptyState'
+import { ThinkingIndicator } from './ThinkingIndicator'
 import { Transport } from '../lib/transport'
 import { METHODS } from '../lib/protocol'
 import { useAppStore } from '../lib/store'
 import { applyTheme, THEMES, type ThemeName } from '../lib/theme'
+import {
+  formatBytes,
+  readAttachments,
+  toWire,
+  type Attachment,
+} from '../lib/attachments'
 
 interface AppStatus {
   provider: string
@@ -24,75 +30,6 @@ interface AppStatus {
   models: string[]
 }
 
-const COMMANDS: Array<[string, string]> = [
-  ['provider', 'Add or switch model providers'],
-  ['model', 'Browse models from the selected provider'],
-  ['keys', 'Manage stored API keys'],
-  ['mcp', 'Connect ElevenLabs, Deepgram, SUNO, or custom MCP'],
-  ['searchsetup', 'Configure DuckDuckGo, Perplexity, Gemini, Parallel, or custom search'],
-  ['theme', 'Switch visual themes'],
-  ['settings', 'Open Citrine settings'],
-  ['new', 'Start a new session'],
-  ['plan', 'Enter planning mode'],
-  ['build', 'Enter execution mode'],
-  ['memory', 'View or edit saved memory'],
-  ['context', 'Inspect active context'],
-  ['summarize', 'Summarize the session'],
-  ['fork', 'Branch this conversation'],
-  ['session', 'Switch between agent sessions'],
-  ['agent', 'Switch agents or create a new one'],
-  ['tasks', 'View active agent tasks'],
-  ['tools', 'Inspect enabled tools'],
-  ['approvals', 'Review pending confirmations'],
-  ['schedule', 'Create a scheduled task'],
-  ['code', 'Generate or refactor code'],
-  ['explain', 'Explain code or concepts'],
-  ['refactor', 'Improve existing code'],
-  ['test', 'Generate or run tests'],
-  ['docs', 'Generate documentation'],
-  ['review', 'Review code for bugs'],
-  ['debug', 'Diagnose errors'],
-  ['diff', 'Inspect current changes'],
-  ['patch', 'Apply a focused patch'],
-  ['commit', 'Create a git commit'],
-  ['git', 'Inspect branches and history'],
-  ['init', 'Initialize a project'],
-  ['open', 'Open a project'],
-  ['files', 'Browse project files'],
-  ['workspace', 'Manage workspace roots'],
-  ['run', 'Run a project command'],
-  ['terminal', 'Open a shell pane'],
-  ['deploy', 'Deploy the project'],
-  ['env', 'Manage environment variables'],
-  ['package', 'Build or package the app'],
-  ['update', 'Check for updates'],
-  ['desktop', 'Request desktop control'],
-  ['screenshot', 'Capture the screen'],
-  ['browse', 'Open a browser task'],
-  ['search', 'Search through the configured search provider'],
-  ['web', 'Fetch or inspect web pages'],
-  ['research', 'Run a research pass'],
-  ['notes', 'Open local notes'],
-  ['speak', 'Generate speech with ElevenLabs'],
-  ['listen', 'Start voice input'],
-  ['transcribe', 'Transcribe audio with Deepgram'],
-  ['voice', 'Manage voices'],
-  ['music', 'Generate music with SUNO'],
-  ['clone', 'Duplicate or transform audio'],
-  ['media', 'View generated media assets'],
-  ['spotify', 'Browse or play Spotify'],
-  ['calendar', 'Inspect calendar context'],
-  ['inbox', 'Triage messages or email'],
-  ['commands', 'Open the full command catalog'],
-  ['history', 'Browse previous sessions'],
-  ['export', 'Export chats or artifacts'],
-  ['reset', 'Reset session state'],
-  ['logs', 'Open app and backend logs'],
-  ['health', 'Run Citrine diagnostics'],
-  ['status', 'Show current system status'],
-  ['help', 'Show help information'],
-]
-
 const CONNECTION_LABEL: Record<string, [string, Segment['tone']]> = {
   idle: ['connecting…', 'dim'],
   connecting: ['connecting…', 'dim'],
@@ -107,7 +44,25 @@ export function AppShell() {
   const [promptValue, setPromptValue] = useState('')
   const [promptFocusToken, setPromptFocusToken] = useState(0)
   const [appStatus, setAppStatus] = useState<AppStatus | null>(null)
+  const [commands, setCommands] = useState<PromptCommand[]>([])
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [pendingFiles, setPendingFiles] = useState<string[] | null>(null)
+  const scrollbackRef = useRef<HTMLDivElement>(null)
   const { connection, lines, addLine, setConnection } = useAppStore()
+
+  // dragenter and dragleave both fire when the pointer crosses a *child*
+  // boundary, so a boolean flickers the overlay off mid-drag. Counting the
+  // enters and leaves is the standard fix.
+  const dragDepth = useRef(0)
+  const [dragging, setDragging] = useState(false)
+
+  const refreshStatus = useCallback(
+    async (client: Transport | null = transport.current): Promise<void> => {
+      if (!client || client.getState() !== 'open') return
+      setAppStatus(await client.request<AppStatus>(METHODS.appStatus))
+    },
+    [],
+  )
 
   useEffect(() => {
     const t = new Transport()
@@ -123,32 +78,52 @@ export function AppShell() {
       try {
         await t.connect(info)
         await refreshStatus(t)
+        // The catalog is owned by the backend registry. Fetching it means the
+        // menu cannot list a command the backend does not implement, which a
+        // second hand-maintained copy in the renderer guarantees eventually.
+        const catalog = await t.request<{ commands: PromptCommand[] }>(
+          METHODS.appCommands,
+        )
+        setCommands(catalog.commands ?? [])
       } catch (error) {
         addLine('error', error instanceof Error ? error.message : String(error))
       }
     })()
 
     return () => t.close()
-  }, [addLine, setConnection])
+  }, [addLine, setConnection, refreshStatus])
+
+  // Pin the transcript to the newest line as it grows.
+  useEffect(() => {
+    const element = scrollbackRef.current
+    if (element) element.scrollTop = element.scrollHeight
+  }, [lines, pendingFiles])
 
   async function handleSubmit(value: string): Promise<void> {
-    addLine('input', value)
+    const sent = attachments
+    const names = sent.map((attachment) => attachment.name)
+
+    addLine('input', value, names.length > 0 ? names : undefined)
+    setAttachments([])
+    setPendingFiles(names)
+
     try {
-      const method = value.startsWith('/') ? METHODS.commandRun : METHODS.chatSend
-      const result = await transport.current!.request<{ text: string }>(method, {
-        text: value,
-      })
+      const isCommand = value.startsWith('/')
+      const method = isCommand ? METHODS.commandRun : METHODS.chatSend
+      const params: Record<string, unknown> = { text: value }
+      // Commands run locally against config and take no files; only a chat
+      // turn has anything to do with them.
+      if (!isCommand && sent.length > 0) params.attachments = toWire(sent)
+
+      const result = await transport.current!.request<{ text: string }>(method, params)
       addLine('output', result.text)
       maybeApplyCommandSideEffect(value)
       await refreshStatus()
     } catch (error) {
       addLine('error', error instanceof Error ? error.message : String(error))
+    } finally {
+      setPendingFiles(null)
     }
-  }
-
-  function handleCommandSelect(name: string): void {
-    setPromptValue(`/${name} `)
-    setPromptFocusToken((token) => token + 1)
   }
 
   function maybeApplyCommandSideEffect(value: string): void {
@@ -159,23 +134,56 @@ export function AppShell() {
     }
   }
 
-  async function refreshStatus(client = transport.current): Promise<void> {
-    if (!client || client.getState() !== 'open') return
-    const result = await client.request<AppStatus>(METHODS.appStatus)
-    setAppStatus(result)
+  async function ingest(files: FileList | File[]): Promise<void> {
+    const read = await readAttachments(files)
+    if (read.length === 0) return
+    setAttachments((current) => [...current, ...read])
+    setPromptFocusToken((token) => token + 1)
   }
 
-  function commandSuggestions(): Array<{ label: string; value: string }> {
+  function handleDragEnter(event: DragEvent<HTMLDivElement>): void {
+    if (!event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    dragDepth.current += 1
+    setDragging(true)
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>): void {
+    if (!event.dataTransfer.types.includes('Files')) return
+    // Without this the browser navigates to the dropped file and the whole
+    // renderer is replaced by it.
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  function handleDragLeave(): void {
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragging(false)
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>): void {
+    event.preventDefault()
+    dragDepth.current = 0
+    setDragging(false)
+    if (event.dataTransfer.files.length > 0) void ingest(event.dataTransfer.files)
+  }
+
+  function removeAttachment(name: string): void {
+    setAttachments((current) => current.filter((item) => item.name !== name))
+  }
+
+  function argumentSuggestions(): PromptOption[] {
     if (!promptValue.startsWith('/')) return []
     const [command, ...rest] = promptValue.trimStart().split(/\s+/)
     const query = rest.join(' ').toLowerCase()
-    const filter = (items: Array<{ label: string; value: string }>) =>
+    const filter = (items: PromptOption[]) =>
       items.filter((item) => item.label.toLowerCase().includes(query)).slice(0, 8)
 
     if (command === '/provider') {
       return filter(
         (appStatus?.providers ?? []).map((provider) => ({
-          label: `${provider.label}${provider.model ? ` · ${provider.model}` : ''}`,
+          label: provider.label,
+          hint: provider.model ?? undefined,
           value: `/provider ${provider.id}`,
         })),
       )
@@ -211,77 +219,116 @@ export function AppShell() {
   const promptMeta = appStatus
     ? `${appStatus.provider} · ${appStatus.model} · ${appStatus.tokens}`
     : 'provider: -- · model: -- · tokens: --'
+  const busy = pendingFiles !== null
 
   return (
-    <div className="ct-app">
+    <div
+      className="ct-app"
+      data-dragging={dragging || undefined}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <header className="ct-app__header">
         <span className="ct-app__logo">Citrine</span>
         <span className="ct-app__sub">AI Project</span>
+        <div className="ct-app__meta">
+          <span className="ct-chip">
+            <span className="ct-chip__key">agent</span>
+            {appStatus?.agent ?? '--'}
+          </span>
+          <span className="ct-chip">
+            <span className="ct-chip__key">session</span>
+            {appStatus?.session ?? '--'}
+          </span>
+          <span className="ct-chip">
+            <span className="ct-chip__key">model</span>
+            {appStatus?.model ?? '--'}
+          </span>
+        </div>
       </header>
 
-      <div className="ct-app__body">
-        <aside className="ct-app__rail">
-          <Panel title="Available Commands">
-            <ul className="ct-cmdlist">
-              {COMMANDS.map(([name, description]) => (
-                <li key={name}>
-                  <button
-                    type="button"
-                    className="ct-cmdlist__button"
-                    onClick={() => handleCommandSelect(name)}
-                    aria-label={`Insert /${name} command`}
-                  >
-                    <span className="ct-cmdlist__name">/{name}</span>
-                    <span className="ct-cmdlist__desc">{description}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-          <Panel title="Status">
-            <div className="ct-status">
-              <div>
-                Connection: <span className="ct-accent">{label}</span>
-              </div>
-              <div>Session: local</div>
-              <div>Commands: {COMMANDS.length}</div>
-            </div>
-          </Panel>
-        </aside>
-
-        <main className="ct-app__main">
-          <Frame title={`Citrine v0.1.0 · shell & spine`}>
-            <div className="ct-scrollback" data-testid="scrollback">
-              {lines.length === 0 ? (
-                <EmptyState />
-              ) : (
-                lines.map((line) => (
-                  <div key={line.id} className="ct-line" data-kind={line.kind}>
-                    {line.kind === 'input' ? `> ${line.text}` : line.text}
-                  </div>
-                ))
-              )}
-            </div>
-          </Frame>
-        </main>
-      </div>
+      <main className="ct-app__main">
+        <Frame title="Citrine v0.1.0 · shell &amp; spine">
+          <div className="ct-scrollback" data-testid="scrollback" ref={scrollbackRef}>
+            {lines.length === 0 && !busy ? (
+              <EmptyState />
+            ) : (
+              lines.map((line) => (
+                <div key={line.id} className="ct-line" data-kind={line.kind}>
+                  {line.kind === 'input' ? `> ${line.text}` : line.text}
+                  {line.files && (
+                    <span className="ct-line__files"> [{line.files.join(', ')}]</span>
+                  )}
+                </div>
+              ))
+            )}
+            {busy && <ThinkingIndicator files={pendingFiles ?? []} />}
+          </div>
+        </Frame>
+      </main>
 
       <StatusBar
         segments={[
           { id: 'app', label: 'citrine', tone: 'accent' },
           { id: 'branch', label: ' main', tone: 'gold' },
+          { id: 'commands', label: `${commands.length} commands`, tone: 'dim' },
         ]}
-        right={[{ id: 'conn', label, tone }]}
+        right={[
+          { id: 'tokens', label: appStatus?.tokens ?? '--', tone: 'dim' },
+          { id: 'conn', label, tone },
+        ]}
       />
+
       <Prompt
         value={promptValue}
         onValueChange={setPromptValue}
         focusToken={promptFocusToken}
         meta={promptMeta}
-        suggestions={commandSuggestions()}
+        commands={commands}
+        suggestions={argumentSuggestions()}
         onSubmit={(v) => void handleSubmit(v)}
-        disabled={connection !== 'open'}
-      />
+        disabled={connection !== 'open' || busy}
+      >
+        {attachments.length > 0 && (
+          <div className="ct-attachments" data-testid="attachments">
+            {attachments.map((attachment) => (
+              <span
+                key={attachment.name}
+                className="ct-attachment"
+                data-unreadable={attachment.text === null || undefined}
+              >
+                <span className="ct-attachment__name">{attachment.name}</span>
+                <span className="ct-attachment__size">
+                  {formatBytes(attachment.size)}
+                  {attachment.truncated && ' · truncated'}
+                  {attachment.text === null && ' · binary'}
+                </span>
+                <button
+                  type="button"
+                  className="ct-attachment__remove"
+                  aria-label={`Remove ${attachment.name}`}
+                  onClick={() => removeAttachment(attachment.name)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </Prompt>
+
+      {dragging && (
+        <div className="ct-dropzone" data-testid="dropzone" role="presentation">
+          <div className="ct-dropzone__inner">
+            <span className="ct-dropzone__title">Drop files for Citrine</span>
+            <span className="ct-dropzone__hint">
+              Text files are read in full; anything else is described by name and size.
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

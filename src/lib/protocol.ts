@@ -22,6 +22,7 @@ export type ErrorCode = (typeof ERROR_CODES)[number]
 export const METHODS = {
   auth: 'auth',
   appStatus: 'app.status',
+  appCommands: 'app.commands',
   echo: 'echo',
   commandRun: 'command.run',
   chatSend: 'chat.send',

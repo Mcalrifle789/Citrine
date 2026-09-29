@@ -110,35 +110,75 @@
 .ct-prompt__input:disabled {
   color: var(--c-text-dim);
 }
+/*
+ * The command menu. Tall enough that scrolling is expected rather than a
+ * surprise — the catalog runs to dozens of entries, and a menu that shows
+ * three of them hides the fact that there are more.
+ */
 .ct-command-popover {
   position: absolute;
   bottom: calc(100% + var(--sp-2));
   left: var(--sp-4);
   z-index: 10;
-  display: grid;
-  width: min(520px, calc(100vw - 32px));
-  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  width: min(560px, calc(100vw - 32px));
+  max-height: 46vh;
   overflow-y: auto;
+  /* The wheel scrolls this list, not the transcript behind it. */
+  overscroll-behavior: contain;
+  list-style: none;
   border: var(--border-w) solid var(--c-border);
-  background: color-mix(in srgb, var(--c-bg) 88%, transparent);
-  box-shadow: 0 0 24px rgb(0 0 0 / 35%);
+  background: color-mix(in srgb, var(--c-bg) 94%, transparent);
+  box-shadow: 0 0 24px rgb(0 0 0 / 45%);
+  animation: ct-popover-in 120ms ease-out both;
 }
 .ct-command-popover__item {
-  border: 0;
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: var(--sp-3);
+  align-items: baseline;
   border-bottom: var(--border-w) solid color-mix(in srgb, var(--c-border) 45%, transparent);
   padding: var(--sp-2) var(--sp-3);
-  background: transparent;
   color: var(--c-text);
-  font: inherit;
-  text-align: left;
   cursor: pointer;
 }
-.ct-command-popover__item:hover,
-.ct-command-popover__item:focus-visible {
-  outline: none;
-  background: color-mix(in srgb, var(--c-accent) 13%, transparent);
+.ct-command-popover__item:last-child {
+  border-bottom: 0;
+}
+.ct-command-popover__label {
   color: var(--c-accent);
+  white-space: nowrap;
+}
+.ct-command-popover__hint {
+  color: var(--c-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One highlight for both the arrow keys and the pointer: hovering moves the
+   active index, so there is never a second, competing highlight. */
+.ct-command-popover__item[data-active] {
+  background: color-mix(in srgb, var(--c-accent) 15%, transparent);
+  box-shadow: inset 2px 0 0 var(--c-accent);
+}
+.ct-command-popover__item[data-active] .ct-command-popover__label {
   text-shadow: var(--glow-accent);
+}
+.ct-command-popover__item[data-active] .ct-command-popover__hint {
+  color: var(--c-text);
+}
+
+@keyframes ct-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -148,6 +188,10 @@
   .ct-prompt,
   .ct-prompt__sigil {
     transition: none;
+  }
+
+  .ct-command-popover {
+    animation: none;
   }
 
   .ct-prompt:focus-within .ct-prompt__sigil {

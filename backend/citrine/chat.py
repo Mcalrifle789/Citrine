@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
+from citrine.attachments import Attachment, build_prompt
 from citrine.catalog import provider_by_id
 from citrine.config import CitrineConfig
 from citrine.secrets_store import load_secret, secret_key
@@ -19,8 +20,15 @@ class ChatResult:
     tokens_used: int
 
 
-def send_chat(message: str, config: CitrineConfig | None = None) -> ChatResult:
+def send_chat(
+    message: str,
+    config: CitrineConfig | None = None,
+    attachments: list[Attachment] | None = None,
+) -> ChatResult:
     cfg = config or CitrineConfig()
+    # The attached files become part of the prompt, but the early returns below
+    # are all configuration errors that the files are irrelevant to — so the
+    # fold happens once, just before the request that actually needs it.
     provider = cfg.active_provider()
     if provider is None:
         text = (
@@ -45,7 +53,14 @@ def send_chat(message: str, config: CitrineConfig | None = None) -> ChatResult:
         return ChatResult(text, estimate_tokens(message) + estimate_tokens(text))
 
     if descriptor.kind == "openai":
-        return _send_openai_compatible(message, provider.label, provider.base_url or descriptor.base_url, model, api_key)
+        prompt = build_prompt(message, attachments or [])
+        return _send_openai_compatible(
+            prompt,
+            provider.label,
+            provider.base_url or descriptor.base_url,
+            model,
+            api_key,
+        )
 
     text = (
         f"{provider.label} is selected with model {model}, but this provider adapter "

@@ -19,8 +19,9 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from citrine.app_status import app_status
+from citrine.attachments import describe, parse_attachments
 from citrine.chat import send_chat
-from citrine.commands import run_command
+from citrine.commands import COMMANDS, run_command
 from citrine.config import load_config, save_config
 from citrine.logging import get_logger
 from citrine.protocol import (
@@ -126,6 +127,22 @@ async def _serve(websocket: WebSocket) -> None:
             await websocket.send_text(reply.to_json())
             continue
 
+        if envelope.method == "app.commands":
+            # The renderer's "/" menu is built from this. Serving the registry
+            # rather than letting the renderer keep its own copy means the menu
+            # cannot offer a command the backend does not implement.
+            reply = make_envelope(
+                envelope.id, MessageType.RESPONSE, "app.commands",
+                {
+                    "commands": [
+                        {"name": command.name, "description": command.description}
+                        for command in COMMANDS
+                    ]
+                },
+            )
+            await websocket.send_text(reply.to_json())
+            continue
+
         if envelope.method == "command.run":
             text = envelope.params.get("text", "")
             config = load_config()
@@ -139,8 +156,11 @@ async def _serve(websocket: WebSocket) -> None:
 
         if envelope.method == "chat.send":
             text = envelope.params.get("text", "")
+            attachments = parse_attachments(envelope.params.get("attachments"))
+            if attachments:
+                log.info("chat.send with %s", describe(attachments))
             config = load_config()
-            result = send_chat(str(text), config)
+            result = send_chat(str(text), config, attachments)
             _add_session_tokens(config, result.tokens_used)
             save_config(config)
             reply = make_envelope(envelope.id, MessageType.RESPONSE, "chat.send",

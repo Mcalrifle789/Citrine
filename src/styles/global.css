@@ -3,6 +3,7 @@
 @import './background.css';
 @import '../components/terminal/terminal.css';
 @import '../components/app.css';
+@import '../components/launch.css';
 
 *,
 *::before,

@@ -8,8 +8,11 @@ systems can replace individual handlers in later slices.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
+from citrine import github
 from citrine.config import AgentConfig, CitrineConfig
+from citrine.git_identity import citrine_identity
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,7 @@ COMMANDS: tuple[Command, ...] = (
     Command("patch", "Apply a focused patch"),
     Command("commit", "Create a git commit"),
     Command("git", "Inspect branches and history"),
+    Command("github", "Create a GitHub repository, with Citrine as a contributor"),
     Command("init", "Initialize a project"),
     Command("open", "Open a project"),
     Command("files", "Browse project files"),
@@ -132,6 +136,12 @@ def run_command(raw: str, config: CitrineConfig | None = None) -> str:
         return _agent_command(arg, cfg)
     if head == "status":
         return _status(cfg)
+    if head == "github":
+        return _github_command(arg)
+    if head == "init":
+        return _init_command(arg)
+    if head == "commit":
+        return _commit_command(arg)
     if head == "health":
         return "Citrine health\nBackend websocket: ok\nCommand registry: ok"
 
@@ -274,6 +284,83 @@ def _agent_command(arg: str, config: CitrineConfig) -> str:
     )
     config.active_agent = arg
     return f"Agent created: {arg} ({model or 'no model selected'})."
+
+
+def _workspace(arg: str) -> Path:
+    """Resolve a path argument against the working directory."""
+    return Path(arg).expanduser().resolve() if arg else Path.cwd()
+
+
+def _github_command(arg: str) -> str:
+    """``/github [status | create <name> [--public]] [in <path>]``."""
+    parts = arg.split()
+    sub = parts[0].lower() if parts else "status"
+
+    if sub in {"status", ""}:
+        return github.status(Path.cwd()).text()
+
+    if sub != "create":
+        return (
+            f"Unknown /github action: {sub}\n"
+            "Usage:\n"
+            "  /github status              - show how Citrine is credited\n"
+            "  /github create <name>       - create a private repo and push\n"
+            "  /github create <name> --public"
+        )
+
+    rest = [part for part in parts[1:] if part not in {"--public", "--private"}]
+    if not rest:
+        return "Usage: /github create <name> [--public]"
+
+    private = "--public" not in parts
+    name = rest[0]
+    target = _workspace(rest[1]) if len(rest) > 1 else Path.cwd() / name
+
+    return github.create_repository(target, name=name, private=private).text()
+
+
+def _init_command(arg: str) -> str:
+    """``/init <name> | /init here`` — a repository with a Citrine scaffold.
+
+    A bare ``/init`` deliberately does nothing. It would otherwise run
+    ``git init`` and write files into whatever directory the backend happened
+    to be started in, which the user has no reason to know — and creating a
+    repository somewhere unexpected is not something a bare verb should do.
+    """
+    name = arg.strip()
+    if not name:
+        return (
+            "Usage:\n"
+            "  /init <name>   - create ./<name> and initialize it\n"
+            "  /init here     - initialize the current directory\n"
+            f"\nCurrent directory: {Path.cwd()}"
+        )
+
+    if name.lower() == "here":
+        target = Path.cwd()
+        project = target.name
+    else:
+        target = Path.cwd() / name
+        project = name
+
+    result = github.init_repository(target, name=project)
+    if result.ok:
+        result.lines.append("")
+        result.lines.append(f"Use /github create {project} to publish it to GitHub.")
+    return result.text()
+
+
+def _commit_command(arg: str) -> str:
+    """``/commit <message>`` — commit staged work, crediting Citrine."""
+    message = arg.strip()
+    if not message:
+        who = citrine_identity()
+        return (
+            "Usage: /commit <message>\n"
+            "Commits staged changes with you as author and Citrine as "
+            f"co-author ({who})."
+        )
+    return github.commit(Path.cwd(), message).text()
 
 
 def _status(config: CitrineConfig) -> str:
