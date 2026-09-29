@@ -247,11 +247,41 @@ def _model_command(arg: str, config: CitrineConfig) -> str:
 
 
 def _session_command(arg: str, config: CitrineConfig) -> str:
+    """``/session`` - list, switch to, or delete a session.
+
+    Deleting is a first-class verb, not a config edit: a session the user no
+    longer wants should not keep its name in the switcher, its token bucket,
+    or its conversation history on disk.
+    """
+    from citrine import history
+    from citrine.config import usage_key
+
+    if arg.startswith("delete "):
+        name = arg[len("delete "):].strip()
+        if not name:
+            return "Usage: /session delete <name>"
+        if name == config.active_session:
+            return (
+                f"{name} is the active session. Switch to another one first - "
+                "deleting the session you are standing in has no good ending."
+            )
+        if name not in config.sessions:
+            return f"No such session: {name}"
+
+        config.sessions.remove(name)
+        # Every agent keeps a usage bucket per session, and every agent keeps
+        # a conversation per session - both die with the session.
+        removed = 0
+        for agent in config.agents:
+            config.token_usage.pop(usage_key(agent.name, name), None)
+            removed += history.STORE.delete_prefix(f"{agent.name}::{name}#")
+        return f"Session {name} deleted. {removed} stored messages removed."
+
     if not arg:
         return "Sessions\n" + "\n".join(
             f"{'*' if session == config.active_session else ' '} /session {session}"
             for session in config.sessions
-        )
+        ) + "\n\n/session delete <name> removes a session and its history."
     if arg == config.active_session:
         return f"Already on session {arg}."
     fresh = arg not in config.sessions
@@ -300,10 +330,16 @@ def _reset_command(config: CitrineConfig) -> str:
     """``/reset`` - clear the current session in place.
 
     Unlike ``/new`` this keeps the session name, so the epoch has to move for
-    the renderer to notice that the scrollback is no longer valid.
+    the renderer to notice that the scrollback is no longer valid. The stored
+    conversation is cleared under its old key first: after a reset the model
+    should no more remember the old turns than the screen shows them.
     """
+    from citrine import history
+
+    old_key = config.transcript_key()
     config.transcript_epoch += 1
     config.reset_session_tokens()
+    history.STORE.clear(old_key)
     return (
         f"Session {config.active_session} reset. Transcript cleared and "
         "token count back to 0."

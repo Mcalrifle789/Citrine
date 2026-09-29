@@ -19,6 +19,7 @@ import uuid
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from citrine import history
 from citrine.app_status import app_status
 from citrine.attachments import describe, parse_attachments
 from citrine.chat import send_chat
@@ -148,6 +149,18 @@ async def _serve(websocket: WebSocket, workspace: str | None = None) -> None:
                     ]
                 },
             )
+            await websocket.send_text(reply.to_json())
+            continue
+
+        if envelope.method == "history.get":
+            # The saved conversation for a transcript key, so the renderer can
+            # put a reopened or re-entered session back on screen. Roles come
+            # back as stored; the renderer decides how to render them.
+            config = load_config()
+            key = str(envelope.params.get("key") or config.transcript_key())
+            messages = history.STORE.messages_for(key)
+            reply = make_envelope(envelope.id, MessageType.RESPONSE, "history.get",
+                                  {"key": key, "messages": messages})
             await websocket.send_text(reply.to_json())
             continue
 

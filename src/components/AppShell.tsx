@@ -53,7 +53,8 @@ export function AppShell() {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [pendingFiles, setPendingFiles] = useState<string[] | null>(null)
   const scrollbackRef = useRef<HTMLDivElement>(null)
-  const { connection, lines, addLine, setConnection, switchTranscript } = useAppStore()
+  const { connection, lines, addLine, setConnection, switchTranscript, restoreTranscript } =
+    useAppStore()
 
   // dragenter and dragleave both fire when the pointer crosses a *child*
   // boundary, so a boolean flickers the overlay off mid-drag. Counting the
@@ -70,9 +71,42 @@ export function AppShell() {
       // different conversation, so the window follows it — that is what makes
       // /new, /session, /agent and /reset start from a blank scrollback
       // instead of carrying the previous session's lines forward.
-      if (status.transcript_key) switchTranscript(status.transcript_key)
+      if (!status.transcript_key) return
+      switchTranscript(status.transcript_key)
+
+      // Saved sessions come back after a restart or a session switch. The
+      // backend has the turns; the window only needs them replayed — and only
+      // if nothing is already on screen for this conversation.
+      await restoreSavedTranscript(client, status.transcript_key)
     },
-    [switchTranscript],
+    [switchTranscript, restoreTranscript],
+  )
+
+  const restoreSavedTranscript = useCallback(
+    async (client: Transport, key: string): Promise<void> => {
+      const state = useAppStore.getState()
+      const existing = state.transcripts[key]
+      if (existing && existing.length > 0) return
+      if (key === state.transcriptKey && state.lines.length > 0) return
+
+      try {
+        const saved = await client.request<{
+          messages: Array<{ role: string; content: string }>
+        }>(METHODS.historyGet, { key }, STATUS_TIMEOUT_MS)
+        const restored = (saved.messages ?? []).map((message, index) => ({
+          // The index is in the id: message content repeats in real
+          // conversations, and duplicate keys make React misbehave.
+          id: `history-${key}-${index}`,
+          kind: message.role === 'user' ? ('input' as const) : ('output' as const),
+          text: message.content,
+        }))
+        if (restored.length > 0) restoreTranscript(key, restored)
+      } catch {
+        // A missing or failed history fetch is not an error the user can act
+        // on: the window stays blank, exactly like a new session.
+      }
+    },
+    [restoreTranscript],
   )
 
   useEffect(() => {
@@ -212,12 +246,22 @@ export function AppShell() {
       )
     }
     if (command === '/session') {
-      return filter(
-        (appStatus?.sessions ?? []).map((session) => ({
-          label: session,
+      const sessions = appStatus?.sessions ?? []
+      return filter([
+        ...sessions.map((session) => ({
+          label: session === appStatus?.session ? `${session} (active)` : session,
           value: `/session ${session}`,
         })),
-      )
+        // Deletion is offered per session, not as a bare subcommand to
+        // remember. The active one is excluded: the backend refuses it, and
+        // the menu should not offer what cannot work.
+        ...sessions
+          .filter((session) => session !== appStatus?.session)
+          .map((session) => ({
+            label: `delete ${session}`,
+            value: `/session delete ${session}`,
+          })),
+      ])
     }
     if (command === '/agent') {
       return filter(

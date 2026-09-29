@@ -39,6 +39,15 @@ interface AppState {
   switchTranscript: (key: TranscriptKey) => void
   /** Discard the active transcript's lines, keeping the key. */
   clearTranscript: () => void
+  /**
+   * Put a saved conversation back on screen.
+   *
+   * Used when a transcript exists on the backend but not in this window's
+   * memory - an app restart, or a session re-entered after a reload. It only
+   * fills a gap: a transcript already in memory is never overwritten, because
+   * the user may have typed while the restore was in flight.
+   */
+  restoreTranscript: (key: TranscriptKey, lines: Line[]) => void
   reset: () => void
 }
 
@@ -71,6 +80,16 @@ export const useAppStore = create<AppState>((set) => ({
     }),
   clearTranscript: () =>
     set((s) => ({ lines: [], transcripts: { ...s.transcripts, [s.transcriptKey]: [] } })),
+  restoreTranscript: (key, restored) =>
+    set((s) => {
+      const existing = s.transcripts[key]
+      if (existing && existing.length > 0) return s
+      const transcripts = { ...s.transcripts, [key]: restored }
+      if (s.transcriptKey === key && s.lines.length === 0) {
+        return { lines: restored, transcripts }
+      }
+      return { transcripts }
+    }),
   reset: () =>
     set({ connection: 'idle', lines: [], transcriptKey: INITIAL_KEY, transcripts: {} }),
 }))

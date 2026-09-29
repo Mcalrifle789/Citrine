@@ -25,6 +25,7 @@ export const METHODS = {
   appCommands: 'app.commands',
   echo: 'echo',
   commandRun: 'command.run',
+  historyGet: 'history.get',
   chatSend: 'chat.send',
   chatCancel: 'chat.cancel',
   chatDelta: 'chat.delta',

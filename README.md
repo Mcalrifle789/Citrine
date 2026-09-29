@@ -176,6 +176,14 @@ from zero every message. Memory is keyed by agent, session and epoch, so
 same moment the window clears. It stores what was asked and what was
 concluded, not raw file dumps, so memory does not eat the context window.
 
+**Sessions are saved.** Conversations live in
+`~/.citrine/sessions.sqlite3`, so closing and reopening the app puts you back
+where you were: switch to a session with `/session <name>` (or pick it from
+the `/session` menu) and the transcript is replayed. Deleting a session —
+`/session delete <name>`, also in the `/session` menu — removes its name from
+the switcher, its token count, and every stored message for every agent.
+The active session cannot be deleted; switch away first.
+
 Inspect and change all of this with `/tools`:
 
 ```

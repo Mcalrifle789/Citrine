@@ -115,3 +115,34 @@ describe('transcripts', () => {
     expect(store().lines).toEqual([])
   })
 })
+
+describe('restoreTranscript', () => {
+  beforeEach(() => store().reset())
+
+  it('fills an unseen transcript with saved lines', () => {
+    store().restoreTranscript('Default::main#0', [
+      { id: 'h-0', kind: 'input', text: 'saved question' },
+      { id: 'h-1', kind: 'output', text: 'saved answer' },
+    ])
+    expect(store().transcripts['Default::main#0']).toHaveLength(2)
+  })
+
+  it('shows the restored lines when they belong to the active, empty window', () => {
+    store().switchTranscript('Default::main#0')
+    store().restoreTranscript('Default::main#0', [
+      { id: 'h-0', kind: 'input', text: 'saved question' },
+    ])
+    expect(store().lines.map((l) => l.text)).toEqual(['saved question'])
+  })
+
+  it('never overwrites lines already on screen', () => {
+    store().switchTranscript('Default::main#0')
+    store().addLine('input', 'typed while the restore was in flight')
+    store().restoreTranscript('Default::main#0', [
+      { id: 'h-0', kind: 'output', text: 'saved answer' },
+    ])
+    expect(store().lines.map((l) => l.text)).toEqual([
+      'typed while the restore was in flight',
+    ])
+  })
+})
