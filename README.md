@@ -15,11 +15,19 @@ route to the active agent/provider when setup has been completed.
 
 ## Install & Uninstall (Windows)
 
-One command installs everything and wires the app into Windows:
+**Easiest way:** double-click **`install-citrine.cmd`** in the repository
+folder. A console window shows progress and *stays open* if something fails,
+so the error is readable.
+
+The command-line equivalent:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
+
+(Don't double-click `install.ps1` itself — Windows opens `.ps1` files in an
+editor, and "Run with PowerShell" closes the window before you can read an
+error. That is what `install-citrine.cmd` exists to handle.)
 
 The installer:
 
@@ -37,6 +45,8 @@ It is idempotent — safe to re-run over an existing install.
 
 ### Uninstall
 
+Double-click **`uninstall-citrine.cmd`**, or:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
 ```
@@ -50,7 +60,20 @@ default. Flags:
 - `-KeepDeps` — keep `node_modules` / `backend\.venv` / `out` for a fast reinstall
 
 You can also uninstall from **Settings > Apps > Citrine**, which runs this
-same script.
+same script, or from the *Uninstall Citrine* Start Menu shortcut.
+
+### If the installer fails
+
+The console window stays open on failure and prints a single line starting
+with `INSTALL ERROR:`. Copy that line when asking for help. Two causes worth
+knowing:
+
+- **"running scripts is disabled on this system"** — you ran the `.ps1`
+directly. Use `install-citrine.cmd`, which sets the policy per-run.
+- **Nothing happens / it exits instantly** — the `.cmd` got LF line endings
+  from a non-Windows checkout. Re-fetch the file, or regenerate it with
+  `python scripts/gen_wrappers.py` (it writes CRLF; `.gitattributes` keeps it
+  that way in git).
 
 ## Manual Setup (all platforms)
 

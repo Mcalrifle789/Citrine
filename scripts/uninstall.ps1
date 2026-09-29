@@ -28,6 +28,12 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
+trap {
+    Write-Host ''
+    Write-Host ('UNINSTALL ERROR: ' + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
+
 function Write-Step($message) { Write-Host "`n==> $message" -ForegroundColor Cyan }
 
 $root = Split-Path -Parent $PSScriptRoot

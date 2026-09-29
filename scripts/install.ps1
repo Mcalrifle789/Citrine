@@ -22,6 +22,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# One readable failure line instead of a stack dump: the .cmd wrapper keeps
+# the window open and its instructions tell the user to copy this.
+trap {
+    Write-Host ''
+    Write-Host ('INSTALL ERROR: ' + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
+
 # ---------------------------------------------------------------- helpers ---
 
 function Write-Step($message) { Write-Host "`n==> $message" -ForegroundColor Cyan }
@@ -161,9 +169,14 @@ $ws = New-Object -ComObject WScript.Shell
 $icon = Join-Path $root 'build\icon.ico'
 $uninstallScript = Join-Path $PSScriptRoot 'uninstall.ps1'
 
+# The Start Menu uninstall entry uses the .cmd wrapper (visible window, errors
+# stay on screen). The Add/Remove Programs entry below uses the .ps1 directly,
+# because Settings > Apps runs it non-interactively and must not wait on input.
+$uninstallWrapper = Join-Path $root 'uninstall-citrine.cmd'
+
 $targets = @(
     @{ Name = 'Citrine'; Path = (Join-Path $root 'bin\citrine-launch.vbs'); Dir = $root },
-    @{ Name = 'Uninstall Citrine'; Path = $uninstallScript; Dir = $root }
+    @{ Name = 'Uninstall Citrine'; Path = $uninstallWrapper; Dir = $root }
 )
 
 $desktop = [Environment]::GetFolderPath('Desktop')
@@ -178,8 +191,10 @@ foreach ($dir in $shortcutDirs) {
             $sc.TargetPath = 'wscript.exe'
             $sc.Arguments = "`"$($target.Path)`""
         } else {
-            $sc.TargetPath = 'powershell.exe'
-            $sc.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$($target.Path)`""
+            # Launch the .cmd through cmd.exe so the window appears and stays
+            # open on failure.
+            $sc.TargetPath = 'cmd.exe'
+            $sc.Arguments = "/c `"$($target.Path)`""
         }
         $sc.WorkingDirectory = $target.Dir
         if (Test-Path $icon) { $sc.IconLocation = $icon }
@@ -210,7 +225,8 @@ Write-Host ''
 Write-Host '  Start it:      Citrine            (any terminal)'
 Write-Host '                 double-click the Citrine desktop shortcut'
 Write-Host '  Set up:        citrine setup      (providers, keys, search)'
-Write-Host '  Uninstall:     Settings > Apps, or scripts\uninstall.ps1'
+Write-Host '  Uninstall:     Settings > Apps, scripts\uninstall.ps1,'
+Write-Host '                 or uninstall-citrine.cmd (double-click)'
 Write-Host ''
 Write-Host 'Note: a terminal opened before this install will not have the'
 Write-Host '"citrine" command yet. Open a fresh one.'

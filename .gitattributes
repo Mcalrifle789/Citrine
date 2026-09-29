@@ -1,0 +1,7 @@
+# Windows batch files must keep CRLF line endings. cmd.exe mis-parses LF-only
+# batch files, which silently breaks them (the PowerShell call inside never
+# runs, or the script dies at the first if-block). Without this rule a clone
+# with core.autocrlf=false, or a gateway that normalises on checkout, hands
+# the user a broken installer. See scripts/gen_wrappers.py.
+*.cmd text eol=crlf
+*.bat text eol=crlf
