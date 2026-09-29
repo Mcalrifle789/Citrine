@@ -13,7 +13,49 @@ route to the active agent/provider when setup has been completed.
 - **Node 24** and npm
 - **Python 3.11**, managed by [`uv`](https://docs.astral.sh/uv/)
 
-## Setup
+## Install & Uninstall (Windows)
+
+One command installs everything and wires the app into Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+```
+
+The installer:
+
+1. Checks for Node 22+ and `uv`, and offers to install either via `winget`
+   if missing (`-Yes` to skip the prompts).
+2. Installs Node dependencies (`npm ci`, falling back to `npm install`).
+3. Creates the Python backend venv (`uv venv --python 3.11`, `uv sync`).
+4. Runs a validation build (`-SkipBuild` to skip).
+5. Registers Citrine with Windows:
+   - `citrine` on your user PATH
+   - desktop + Start Menu shortcuts (double-click to launch, no terminal)
+   - an Add/Remove Programs entry, so Citrine shows in **Settings > Apps**
+
+It is idempotent — safe to re-run over an existing install.
+
+### Uninstall
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
+```
+
+Removes the registry entry, shortcuts, PATH entry, and installed
+dependencies. Your data (config, logs, sessions in `~\.citrine`) is kept by
+default. Flags:
+
+- `-PurgeData` — also delete `~\.citrine` and `%LOCALAPPDATA%\Citrine`
+- `-DeleteSource` — also delete the repository folder
+- `-KeepDeps` — keep `node_modules` / `backend\.venv` / `out` for a fast reinstall
+
+You can also uninstall from **Settings > Apps > Citrine**, which runs this
+same script.
+
+## Manual Setup (all platforms)
+
+The installer above is Windows-only. On other systems, or if you prefer to
+do it by hand:
 
 ```bash
 git clone <this repo> citrine
@@ -52,8 +94,9 @@ Two convenience launchers wrap `npm run dev`:
   Stop it by closing the app window.
 
 Both still run the dev toolchain under the hood — conveniences, not a packaged
-build. A real double-clickable installer with no Node/Python dependency comes
-with the packaging work in a later slice.
+build. `scripts\install.ps1` creates all of this automatically on Windows;
+the commands below are the manual equivalent, or for recreating a single
+piece after a change.
 
 The launcher scripts and `build/icon.ico` live in the repo; the PATH entry and
 the desktop `.lnk` are machine-local, created once, not version controlled.
