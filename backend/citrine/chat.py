@@ -27,6 +27,7 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from citrine import tools
+from citrine import history
 from citrine.attachments import Attachment, build_prompt, image_parts
 from citrine.catalog import provider_by_id
 from citrine.config import CitrineConfig
@@ -48,8 +49,13 @@ text extractable from their container, and a base64 prefix of the raw bytes.
 permissions, in the workspace root. Use it to build, test, inspect, and run \
 things rather than asking the user to run them.
 - Use git for repository work, and fetch_url for network requests.
+- Use web_search to search the web when you need to find something online; \
+then fetch_url the promising results to read them.
 - Never claim you cannot read a file, run a command, or reach the network \
 before you have tried the relevant tool. If a tool refuses, say exactly why.
+
+This conversation's earlier messages are included below. Build on what you \
+already found instead of re-reading files you have already seen.
 
 Workspace root: {root}
 Shell commands run in: {shell}
@@ -87,6 +93,7 @@ def send_chat(
     config: CitrineConfig | None = None,
     attachments: list[Attachment] | None = None,
     workspace: str | None = None,
+    transcript_key: str | None = None,
 ) -> ChatResult:
     cfg = config or CitrineConfig()
     files = attachments or []
@@ -132,9 +139,17 @@ def send_chat(
     deadline = time.monotonic() + max(request_timeout, int(cfg.turn_budget_s or 600))
 
     turn = _Turn()
+    # Past turns come from the history store, keyed by the same transcript key
+    # the renderer uses for its scrollback: when the window goes blank, the
+    # model's memory goes with it. The current user message is kept as a
+    # reference rather than a fixed index, because the image fallback below
+    # has to rewrite it wherever it sits in the list.
+    prior = history.STORE.messages_for(transcript_key) if transcript_key else []
+    user_message = {"role": "user", "content": _user_content(message, files)}
     messages = [
         {"role": "system", "content": _system_prompt(context)},
-        {"role": "user", "content": _user_content(message, files)},
+        *prior,
+        user_message,
     ]
 
     max_rounds = max(1, int(cfg.tools.max_rounds)) if cfg.tools.enabled else 1
@@ -163,7 +178,7 @@ def send_chat(
             # The model cannot take image parts. Re-send without them and tell
             # the user once that the files were described rather than seen.
             allow_images = False
-            messages[1]["content"] = _user_content(message, files, images=False)
+            user_message["content"] = _user_content(message, files, images=False)
             data, error = _post(url, api_key, payload, provider.label, timeout)
             if error is not None:
                 return _failed(error, turn)
@@ -195,6 +210,11 @@ def send_chat(
                 text = "(the model returned an empty response)"
             if turn.tokens == 0:
                 turn.tokens = estimate_tokens(message) + estimate_tokens(text)
+            # The exchange is stored as what was asked and what was concluded -
+            # not the attachment-folded prompt or the tool traffic, which would
+            # rent permanent context space for payload the next turn cannot use.
+            if transcript_key:
+                history.STORE.record_turn(transcript_key, message, text)
             return ChatResult(text, turn.tokens, tuple(turn.steps))
 
         messages.append(_assistant_message(response_message, tool_calls))

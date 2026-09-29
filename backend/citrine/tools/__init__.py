@@ -49,7 +49,11 @@ def build_context(config, workspace: str | Path | None = None) -> ToolContext:
     elif settings is not None and getattr(settings, "workspace_root", ""):
         root_value = settings.workspace_root
 
-    root = Path(root_value).expanduser() if root_value else Path.cwd()
+    # The home directory, not the process cwd: the backend is spawned with
+    # cwd=backend/, which is meaningless to the user, whereas ~ is where their
+    # files actually are. An explicit workspace argument or a configured
+    # workspace_root wins over this.
+    root = Path(root_value).expanduser() if root_value else Path.home()
     try:
         root = root.resolve()
     except OSError:  # pragma: no cover - platform specific

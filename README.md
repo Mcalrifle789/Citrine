@@ -166,6 +166,15 @@ The agent works on your machine during a conversation. Inside a turn it can:
 - **run git** — status, diff, log, commit, push — with commits credited to
   Citrine via a `Co-Authored-By:` trailer.
 - **fetch URLs** over http/https, with methods, headers and bodies.
+- **search the web** — `web_search` uses DuckDuckGo's HTML endpoint, so it
+  needs no API key or account; follow up with `fetch_url` to read a result.
+
+**The agent remembers the conversation.** Each turn builds on the previous
+ones — file it already read, conclusions it already drew — instead of starting
+from zero every message. Memory is keyed by agent, session and epoch, so
+`/new`, `/session`, `/agent` and `/reset` clear what the model knows at the
+same moment the window clears. It stores what was asked and what was
+concluded, not raw file dumps, so memory does not eat the context window.
 
 Inspect and change all of this with `/tools`:
 
@@ -181,17 +190,17 @@ Inspect and change all of this with `/tools`:
 
 ### The workspace, and what is not sandboxed
 
-Tools operate inside a **workspace root** — the directory you are working in.
-Electron passes the project root when it starts the backend; `/tools root`
-changes it. File tools refuse to leave that root (unless you opt in with
-`/tools outside on`), and commands run from it.
+Tools operate around a **workspace root** — where relative paths land and
+where commands run. It defaults to your home directory and `/tools root`
+changes it. Paths outside the root work by default — this is a personal agent
+on your machine, and a wall it keeps bumping into is worse than one it can
+see — but `/tools outside off` puts the wall back.
 
 Being straight about the limits: **commands are not sandboxed.** A shell
 command runs as you, and can `cd` anywhere you can. The guards are there to
 stop accidents, not to be a security boundary — a timeout, an output cap, a
 destructive-command list (`rm -rf /`, `git reset --hard`, forced pushes,
-`shutdown`, and friends) that is refused unless you turn it off, and file
-access confined to the workspace.
+`shutdown`, and friends) that is refused unless you turn it on.
 
 The wizard walks through:
 

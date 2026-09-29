@@ -49,7 +49,7 @@ class ToolContext:
     allow_git: bool = True
     allow_network: bool = True
     allow_destructive: bool = False
-    allow_outside_workspace: bool = False
+    allow_outside_workspace: bool = True
     timeout_s: int = 60
     max_output_chars: int = 20_000
     max_file_bytes: int = 200_000
@@ -59,8 +59,9 @@ class ToolContext:
 
         Relative paths are joined to the root rather than the process working
         directory, so a tool call behaves the same no matter where the backend
-        was launched from. Absolute paths are allowed through only when the
-        user has opted into working outside the workspace.
+        was launched from. Absolute paths anywhere on the machine are allowed
+        by default; the workspace is where relative paths land and where
+        commands run, not a jail.
         """
         text = (raw or default).strip() or default
         candidate = Path(text).expanduser()

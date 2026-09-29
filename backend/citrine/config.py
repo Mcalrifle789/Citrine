@@ -52,9 +52,11 @@ class ToolsConfig:
     commands that destroy work without asking are refused unless the user opts
     in.
 
-    ``workspace_root`` is the directory file tools are confined to and the
-    directory commands run in. Empty means "use the process working directory",
-    which Electron sets to the project root when it spawns the sidecar.
+    ``workspace_root`` is the directory file tools treat as home base and the
+    directory commands run in. Empty means "the user's home directory". Paths
+    outside the root are allowed by default - this is a personal agent on the
+    user's own machine, and a wall it keeps bumping into is worse than one it
+    can see - but ``allow_outside_workspace`` turns the wall back on.
     """
 
     enabled: bool = True
@@ -64,7 +66,7 @@ class ToolsConfig:
     allow_git: bool = True
     allow_network: bool = True
     allow_destructive: bool = False
-    allow_outside_workspace: bool = False
+    allow_outside_workspace: bool = True
     workspace_root: str = ""
     command_timeout_s: int = 60
     max_output_chars: int = 20_000

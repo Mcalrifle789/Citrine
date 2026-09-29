@@ -269,3 +269,112 @@ class TestSystemPrompt:
             assert "You have tools. Use them." in system
             assert str(tmp_path) in system
             assert "run_command" in system
+
+
+class TestConversationMemory:
+    """The agent re-reading the same files every turn is the bug this fixes."""
+
+    def test_the_second_turn_sees_the_first_exchange(self, tmp_path):
+        with fake_provider([text_response("first answer")]) as first:
+            send_chat("first question", config_for(first.base_url, tmp_path), transcript_key="k")
+
+        with fake_provider([text_response("second answer")]) as second:
+            send_chat("second question", config_for(second.base_url, tmp_path), transcript_key="k")
+
+            contents = [m["content"] for m in second.requests[0]["messages"]]
+            assert "first question" in contents
+            assert "first answer" in contents
+            assert "second question" in contents
+
+    def test_a_different_transcript_key_starts_fresh(self, tmp_path):
+        with fake_provider([text_response("a")]) as first:
+            send_chat("question one", config_for(first.base_url, tmp_path), transcript_key="session-a")
+
+        with fake_provider([text_response("b")]) as second:
+            send_chat("question two", config_for(second.base_url, tmp_path), transcript_key="session-b")
+
+            contents = [m["content"] for m in second.requests[0]["messages"]]
+            assert "question one" not in contents
+
+    def test_stores_the_raw_message_not_the_attachment_payload(self, tmp_path):
+        """A 64 KB attachment must not be re-sent on every later turn."""
+        attachment = parse_attachments(
+            [{"name": "big.txt", "size": 10, "mime": "text/plain", "text": "x" * 5000}]
+        )[0]
+        with fake_provider([text_response("ok")]) as running:
+            send_chat(
+                "what is in the file?",
+                config_for(running.base_url, tmp_path),
+                [attachment],
+                transcript_key="k",
+            )
+
+        with fake_provider([text_response("ok again")]) as later:
+            send_chat("next question", config_for(later.base_url, tmp_path), transcript_key="k")
+
+            history_user = [
+                m["content"]
+                for m in later.requests[0]["messages"]
+                if m["role"] == "user" and m["content"] == "what is in the file?"
+            ]
+            assert history_user, "the raw user text should be stored verbatim"
+            # Nothing else in history carries the folded attachment payload.
+            for message in later.requests[0]["messages"]:
+                content = message["content"]
+                text = content if isinstance(content, str) else ""
+                if message["role"] == "user" and content != "next question":
+                    assert "x" * 5000 not in text
+
+    def test_tool_traffic_is_not_carried_into_later_turns(self, tmp_path):
+        (tmp_path / "f.txt").write_text("content\n", encoding="utf-8")
+        with fake_provider(
+            [tool_response("read_file", {"path": "f.txt"}), text_response("read it")]
+        ) as running:
+            send_chat("read f.txt", config_for(running.base_url, tmp_path), transcript_key="k")
+
+        with fake_provider([text_response("later")]) as second:
+            send_chat("next", config_for(second.base_url, tmp_path), transcript_key="k")
+
+            roles = [m["role"] for m in second.requests[0]["messages"]]
+            assert "tool" not in roles
+
+    def test_a_failed_turn_leaves_no_memory(self, tmp_path):
+        with fake_provider([error_response(500, "provider blew up")]) as running:
+            send_chat("doomed question", config_for(running.base_url, tmp_path), transcript_key="k")
+
+        with fake_provider([text_response("ok")]) as second:
+            send_chat("retry", config_for(second.base_url, tmp_path), transcript_key="k")
+
+            contents = [m["content"] for m in second.requests[0]["messages"]]
+            assert "doomed question" not in contents
+
+    def test_memory_trims_to_the_cap(self, tmp_path):
+        from citrine.history import MAX_MESSAGES, HistoryStore
+
+        store = HistoryStore()
+        for index in range(60):
+            store.record_turn("k", f"q{index}", f"a{index}")
+
+        messages = store.messages_for("k")
+        assert len(messages) == MAX_MESSAGES
+        # Trimmed in pairs from the front: the oldest surviving turn is whole.
+        assert messages[0]["content"] != "a0"
+        assert messages[-1]["content"] == "a59"
+
+    def test_history_is_thread_safe_under_interleaved_turns(self, tmp_path):
+        """Turns run in a thread pool; the store must not lose or corrupt."""
+        import threading
+
+        from citrine.history import HistoryStore
+
+        store = HistoryStore()
+        threads = [
+            threading.Thread(target=store.record_turn, args=("k", f"q{index}", f"a{index}"))
+            for index in range(20)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert len(store.messages_for("k")) == 40

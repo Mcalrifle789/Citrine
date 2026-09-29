@@ -94,9 +94,23 @@ class TestReadFile:
         assert not result.ok
         assert "directory" in result.content
 
-    def test_refuses_a_path_outside_the_workspace(self, ctx):
+    def test_refuses_a_path_outside_the_workspace_when_asked_to(self, tmp_path):
+        """Confinement still exists - it is just opt-in rather than default."""
+        strict = ToolContext(root=tmp_path / "root", allow_outside_workspace=False)
+        strict.root.mkdir()
         with pytest.raises(ToolError, match="outside the workspace root"):
-            read_file("../escape.txt", ctx)
+            read_file("../escape.txt", strict)
+
+    def test_reads_paths_outside_the_workspace_by_default(self, ctx, tmp_path):
+        """A personal agent that cannot see the user's machine cannot work."""
+        outside = tmp_path / "elsewhere.txt"
+        outside.write_text("d drive content", encoding="utf-8")
+        try:
+            result = read_file(str(outside), ctx)
+            assert result.ok
+            assert "d drive content" in result.content
+        finally:
+            outside.unlink(missing_ok=True)
 
     def test_allows_outside_paths_when_opted_in(self, tmp_path):
         outside = tmp_path.parent / "outside-allowed.txt"
@@ -157,17 +171,24 @@ class TestListDir:
         (ctx.root / "src" / "main.py").write_text("x", encoding="utf-8")
         (ctx.root / "readme.md").write_text("x", encoding="utf-8")
 
-        result = list_dir(".", ctx)
+        result = list_dir(ctx, ".")
 
         assert "src/" in result.content
         assert "readme.md" in result.content
+
+    def test_defaults_to_the_workspace_root(self, ctx):
+        """The model calls list_dir() bare all the time; it must just work."""
+        (ctx.root / "visible.txt").write_text("x", encoding="utf-8")
+        result = list_dir(ctx=ctx)
+        assert result.ok
+        assert "visible.txt" in result.content
 
     def test_recurses_to_the_requested_depth(self, ctx):
         (ctx.root / "a" / "b").mkdir(parents=True)
         (ctx.root / "a" / "b" / "deep.txt").write_text("x", encoding="utf-8")
 
-        shallow = list_dir(".", ctx, depth=1)
-        deep = list_dir(".", ctx, depth=3)
+        shallow = list_dir(ctx, depth=1)
+        deep = list_dir(ctx, depth=3)
 
         assert "deep.txt" not in shallow.content
         assert "deep.txt" in deep.content
@@ -176,7 +197,7 @@ class TestListDir:
         (ctx.root / "node_modules").mkdir()
         (ctx.root / "node_modules" / "junk.js").write_text("x", encoding="utf-8")
 
-        result = list_dir(".", ctx, depth=2)
+        result = list_dir(ctx, depth=2)
 
         assert "junk.js" not in result.content
 

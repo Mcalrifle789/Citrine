@@ -139,13 +139,19 @@ def write_file(
 
 
 def list_dir(
-    path: str,
     ctx: ToolContext,
+    path: str | None = None,
     *,
     depth: int = 1,
     max_entries: int = 400,
 ) -> ToolResult:
-    """List a directory, optionally recursing a bounded number of levels."""
+    """List a directory, optionally recursing a bounded number of levels.
+
+    ``path`` defaults to the workspace root. It has to default here rather
+    than only in the JSON schema: the schema saying "optional" while the
+    function demands it made every bare ``list_dir()`` call fail with a
+    TypeError instead of a listing.
+    """
     _require_files(ctx)
     target = ctx.resolve(path, default=".")
 

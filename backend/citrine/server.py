@@ -176,7 +176,15 @@ async def _serve(websocket: WebSocket, workspace: str | None = None) -> None:
                 log.info("chat.send with %s", describe(attachments))
             config = load_config()
             result = await _run_blocking(
-                send_chat, str(text), config, attachments, workspace=workspace
+                send_chat,
+                str(text),
+                config,
+                attachments,
+                workspace=workspace,
+                # Memory is keyed the same way the renderer keys its window:
+                # a new session, agent switch or /reset starts the model's
+                # context from nothing at the same moment the screen clears.
+                transcript_key=config.transcript_key(),
             )
             config.add_session_tokens(result.tokens_used)
             save_config(config)

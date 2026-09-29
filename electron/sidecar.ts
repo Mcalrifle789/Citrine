@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 
 export interface BackendInfo {
@@ -92,11 +93,12 @@ export class Sidecar {
         python,
         ['-m', 'citrine.server', '--port', '0', '--host', '127.0.0.1',
          '--origin', this.allowedOrigin,
-         // The agent's tools resolve paths against, and run commands in, this
-         // directory. Passing the project root rather than letting the backend
-         // default to its own cwd (backend/) keeps "the workspace" meaning
-         // what the user thinks it means.
-         '--workspace', this.projectRoot],
+         // The workspace is where relative paths land and where commands run.
+         // The user's home directory, not this app's project root: an agent
+         // whose default view was always its own source tree answered
+         // questions about the user's files with refusals. A configured
+         // tools.workspace_root still wins over this.
+         '--workspace', homedir()],
         {
           cwd: resolve(this.projectRoot, 'backend'),
           env: { ...process.env, CITRINE_AUTH_TOKEN: this.token, PYTHONUNBUFFERED: '1' },

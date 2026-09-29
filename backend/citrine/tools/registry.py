@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from citrine.tools import files, git, network, terminal
+from citrine.tools import files, git, network, terminal, web
 from citrine.tools.base import ToolContext, ToolError, ToolResult
 
 
@@ -211,6 +211,28 @@ TOOLS: tuple[Tool, ...] = (
         ),
         category="network",
         run=network.fetch_url,
+        enabled=lambda ctx: ctx.allow_network,
+        disabled_reason="network access is off (tools.allow_network)",
+    ),
+    Tool(
+        name="web_search",
+        description=(
+            "Search the web and get titles, URLs and snippets for the top "
+            "results. No API key needed. Use fetch_url on a result to read the "
+            "full page."
+        ),
+        parameters=_object(
+            {
+                "query": {"type": "string", "description": "What to search for."},
+                "max_results": {
+                    "type": "integer",
+                    "description": "How many results to return. Default 8.",
+                },
+            },
+            ["query"],
+        ),
+        category="network",
+        run=web.web_search,
         enabled=lambda ctx: ctx.allow_network,
         disabled_reason="network access is off (tools.allow_network)",
     ),
