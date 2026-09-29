@@ -40,6 +40,39 @@ class AgentConfig:
 
 
 @dataclass
+class ToolsConfig:
+    """What the agent is allowed to do inside a conversation.
+
+    These defaults are deliberately permissive: Citrine is a local-first
+    personal agent, and an agent that cannot touch the machine is the thing
+    this config exists to stop being. The guards that remain are the ones that
+    protect against an accident rather than a decision - a timeout so a hung
+    command cannot wedge the chat, an output cap so a runaway build cannot
+    crowd the context window, and ``allow_destructive`` off so the handful of
+    commands that destroy work without asking are refused unless the user opts
+    in.
+
+    ``workspace_root`` is the directory file tools are confined to and the
+    directory commands run in. Empty means "use the process working directory",
+    which Electron sets to the project root when it spawns the sidecar.
+    """
+
+    enabled: bool = True
+    allow_files: bool = True
+    allow_write: bool = True
+    allow_terminal: bool = True
+    allow_git: bool = True
+    allow_network: bool = True
+    allow_destructive: bool = False
+    allow_outside_workspace: bool = False
+    workspace_root: str = ""
+    command_timeout_s: int = 60
+    max_output_chars: int = 20_000
+    max_file_bytes: int = 200_000
+    max_rounds: int = 8
+
+
+@dataclass
 class CitrineConfig:
     username: str = ""
     password_hash: str = ""
@@ -54,6 +87,7 @@ class CitrineConfig:
     token_usage: dict[str, int] = field(default_factory=dict)
     active_agent: str = "Default"
     agents: list[AgentConfig] = field(default_factory=lambda: [AgentConfig()])
+    tools: ToolsConfig = field(default_factory=ToolsConfig)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CitrineConfig":
@@ -80,6 +114,7 @@ class CitrineConfig:
             },
             active_agent=str(data.get("active_agent", "Default")),
             agents=[AgentConfig(**item) for item in data.get("agents", [{"name": "Default"}])],
+            tools=_tools_from_dict(data.get("tools")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -98,6 +133,32 @@ class CitrineConfig:
         agent = AgentConfig(name=self.active_agent)
         self.agents.append(agent)
         return agent
+
+
+def _tools_from_dict(data: Any) -> ToolsConfig:
+    """Build a ToolsConfig from stored JSON, ignoring unknown or bad keys.
+
+    A config file written by an older build must not break the chat path, so
+    unrecognised keys are dropped and wrong types fall back to the default
+    rather than raising.
+    """
+    config = ToolsConfig()
+    if not isinstance(data, dict):
+        return config
+    for key, value in data.items():
+        if not hasattr(config, key):
+            continue
+        current = getattr(config, key)
+        if isinstance(current, bool):
+            if isinstance(value, bool):
+                setattr(config, key, value)
+        elif isinstance(current, int):
+            if isinstance(value, int) and not isinstance(value, bool):
+                setattr(config, key, max(0, value))
+        elif isinstance(current, str):
+            if isinstance(value, str):
+                setattr(config, key, value)
+    return config
 
 
 def load_config(path: Path | None = None) -> CitrineConfig:

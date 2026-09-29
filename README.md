@@ -151,6 +151,48 @@ Run the terminal setup wizard with:
 citrine setup
 ```
 
+## Agent Tools
+
+The agent works on your machine during a conversation. Inside a turn it can:
+
+- **read files**, including binary ones — images, PDFs, Office documents,
+  archives and executables are identified from their bytes, their extractable
+  text is pulled out (`.docx`/`.xlsx`/`.pptx`/`.odt` are ZIPs full of XML), and
+  their base64 payload is handed over. Images are sent to vision-capable
+  models as real image parts, so the model looks at the picture rather than
+  reading about it.
+- **write files**, creating parent directories, with atomic replacement.
+- **run commands** in a real shell, with the user's permissions.
+- **run git** — status, diff, log, commit, push — with commits credited to
+  Citrine via a `Co-Authored-By:` trailer.
+- **fetch URLs** over http/https, with methods, headers and bodies.
+
+Inspect and change all of this with `/tools`:
+
+```
+/tools                     show every tool, and the current policy
+/tools on | off            enable or disable tools entirely
+/tools terminal on|off     toggle a capability
+                           (files, write, terminal, git, network)
+/tools destructive on|off  allow the commands on the destructive list
+/tools outside on|off      allow paths outside the workspace
+/tools root <path>         set the workspace root
+```
+
+### The workspace, and what is not sandboxed
+
+Tools operate inside a **workspace root** — the directory you are working in.
+Electron passes the project root when it starts the backend; `/tools root`
+changes it. File tools refuse to leave that root (unless you opt in with
+`/tools outside on`), and commands run from it.
+
+Being straight about the limits: **commands are not sandboxed.** A shell
+command runs as you, and can `cd` anywhere you can. The guards are there to
+stop accidents, not to be a security boundary — a timeout, an output cap, a
+destructive-command list (`rm -rf /`, `git reset --hard`, forced pushes,
+`shutdown`, and friends) that is refused unless you turn it off, and file
+access confined to the workspace.
+
 The wizard walks through:
 
 1. Username and password creation. On Windows, press `Tab` while typing the

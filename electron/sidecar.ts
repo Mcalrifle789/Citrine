@@ -91,7 +91,12 @@ export class Sidecar {
       const child = spawn(
         python,
         ['-m', 'citrine.server', '--port', '0', '--host', '127.0.0.1',
-         '--origin', this.allowedOrigin],
+         '--origin', this.allowedOrigin,
+         // The agent's tools resolve paths against, and run commands in, this
+         // directory. Passing the project root rather than letting the backend
+         // default to its own cwd (backend/) keeps "the workspace" meaning
+         // what the user thinks it means.
+         '--workspace', this.projectRoot],
         {
           cwd: resolve(this.projectRoot, 'backend'),
           env: { ...process.env, CITRINE_AUTH_TOKEN: this.token, PYTHONUNBUFFERED: '1' },

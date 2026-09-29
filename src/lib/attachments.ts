@@ -12,6 +12,13 @@
 /** Per-file text cap. Enough for a source file; short of wedging a prompt. */
 export const MAX_TEXT_BYTES = 64 * 1024
 
+/**
+ * Per-file binary cap. Generous on purpose: this is what lets the agent read
+ * an image, a PDF or an Office document instead of being told it cannot. The
+ * backend refuses anything larger with a reason rather than truncating it.
+ */
+export const MAX_BINARY_BYTES = 8 * 1024 * 1024
+
 /** Files past this in one drop are ignored rather than silently truncated. */
 export const MAX_FILES = 10
 
@@ -22,6 +29,8 @@ export interface Attachment {
   mime: string
   /** Decoded text, or null when the file is binary or was unreadable. */
   text: string | null
+  /** Base64 of the raw bytes for binary files, or null for text files. */
+  dataBase64: string | null
   /** True when `text` holds only the first MAX_TEXT_BYTES of the file. */
   truncated: boolean
   /** Set when the file could not be read; surfaced to the user. */
@@ -76,21 +85,51 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/**
+ * Base64-encode an ArrayBuffer.
+ *
+ * Chunked rather than one `String.fromCharCode(...new Uint8Array(buffer))`
+ * call: spreading a multi-megabyte array blows the argument limit and throws
+ * "Maximum call stack size exceeded", which is exactly the size of file this
+ * function now has to handle.
+ */
+export function toBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
+}
+
 async function readOne(file: File): Promise<Attachment> {
   const base: Attachment = {
     name: file.name,
     size: file.size,
     mime: file.type ?? '',
     text: null,
+    dataBase64: null,
     truncated: false,
   }
 
-  if (!isProbablyText(file.name, base.mime)) return base
-
   try {
-    const slice = file.size > MAX_TEXT_BYTES ? file.slice(0, MAX_TEXT_BYTES) : file
-    const text = await slice.text()
-    return { ...base, text, truncated: file.size > MAX_TEXT_BYTES }
+    if (isProbablyText(file.name, base.mime)) {
+      const slice = file.size > MAX_TEXT_BYTES ? file.slice(0, MAX_TEXT_BYTES) : file
+      const text = await slice.text()
+      return { ...base, text, truncated: file.size > MAX_TEXT_BYTES }
+    }
+
+    // Binary: hand over the bytes. Too large a file is reported rather than
+    // silently dropped, so the user knows why the agent cannot see it.
+    if (file.size > MAX_BINARY_BYTES) {
+      return {
+        ...base,
+        error: `binary file is ${formatBytes(file.size)}; the limit is ${formatBytes(MAX_BINARY_BYTES)}`,
+      }
+    }
+    const dataBase64 = toBase64(await file.arrayBuffer())
+    return { ...base, dataBase64 }
   } catch (error) {
     return {
       ...base,
@@ -118,6 +157,7 @@ export function toWire(attachments: Attachment[]): Array<Record<string, unknown>
     size: attachment.size,
     mime: attachment.mime,
     text: attachment.text,
+    dataBase64: attachment.dataBase64,
     truncated: attachment.truncated,
     ...(attachment.error ? { error: attachment.error } : {}),
   }))

@@ -39,7 +39,11 @@ CLOSE_UNAUTHORIZED = 4401
 CLOSE_FORBIDDEN_ORIGIN = 4403
 
 
-def create_app(token: str, allowed_origins: set[str]) -> FastAPI:
+def create_app(
+    token: str,
+    allowed_origins: set[str],
+    workspace: str | None = None,
+) -> FastAPI:
     app = FastAPI(title="Citrine backend", version=SERVER_VERSION)
 
     @app.websocket("/ws")
@@ -57,7 +61,7 @@ def create_app(token: str, allowed_origins: set[str]) -> FastAPI:
         if not await _authenticate(websocket, token):
             return
 
-        await _serve(websocket)
+        await _serve(websocket, workspace)
 
     return app
 
@@ -97,8 +101,12 @@ async def _authenticate(websocket: WebSocket, token: str) -> bool:
     return True
 
 
-async def _serve(websocket: WebSocket) -> None:
-    """Message loop for an authenticated connection."""
+async def _serve(websocket: WebSocket, workspace: str | None = None) -> None:
+    """Message loop for an authenticated connection.
+
+    ``workspace`` is the directory the app was told to treat as the project
+    root; tools resolve their paths against it.
+    """
     while True:
         try:
             raw = await websocket.receive_text()
@@ -160,13 +168,23 @@ async def _serve(websocket: WebSocket) -> None:
             if attachments:
                 log.info("chat.send with %s", describe(attachments))
             config = load_config()
-            result = send_chat(str(text), config, attachments)
+            result = send_chat(str(text), config, attachments, workspace=workspace)
             _add_session_tokens(config, result.tokens_used)
             save_config(config)
+            for step in result.steps:
+                log.info("tool %s ok=%s %s", step.name, step.ok, step.summary)
             reply = make_envelope(envelope.id, MessageType.RESPONSE, "chat.send",
                                   {
                                       "text": result.text,
                                       "tokens_used": result.tokens_used,
+                                      "tools_used": [
+                                          {
+                                              "name": step.name,
+                                              "ok": step.ok,
+                                              "summary": step.summary,
+                                          }
+                                          for step in result.steps
+                                      ],
                                   })
             await websocket.send_text(reply.to_json())
             continue
@@ -228,6 +246,8 @@ def main() -> None:
                         help="0 lets the OS assign a free port")
     parser.add_argument("--origin", action="append", default=[],
                         help="allowed Origin header value; repeatable")
+    parser.add_argument("--workspace", default=None,
+                        help="project root the agent's tools operate in")
     args = parser.parse_args()
 
     if args.host != "127.0.0.1":
@@ -235,7 +255,8 @@ def main() -> None:
         raise SystemExit(2)
 
     token = _require_token()
-    app = create_app(token=token, allowed_origins=set(args.origin))
+    app = create_app(token=token, allowed_origins=set(args.origin),
+                     workspace=args.workspace)
 
     config = uvicorn.Config(app, host=args.host, port=args.port,
                             log_config=None, access_log=False)

@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_BINARY_BYTES,
   MAX_FILES,
   MAX_TEXT_BYTES,
   formatBytes,
   isProbablyText,
   readAttachments,
   summarise,
+  toBase64,
   toWire,
   type Attachment,
 } from './attachments'
 
 function file(name: string, content: string, mime = ''): File {
   return new File([content], name, { type: mime })
+}
+
+function binaryFile(name: string, bytes: number[], mime = ''): File {
+  return new File([new Uint8Array(bytes)], name, { type: mime })
 }
 
 describe('isProbablyText', () => {
@@ -123,10 +129,55 @@ describe('toWire', () => {
       size: 10,
       mime: 'text/plain',
       text: null,
+      dataBase64: null,
       truncated: false,
       error: 'permission denied',
     }
     expect(toWire([broken])[0]).toHaveProperty('error', 'permission denied')
+  })
+
+  it('sends binary bytes so the backend can read them', async () => {
+    const attachments = await readAttachments([binaryFile('logo.png', [137, 80, 78, 71], 'image/png')])
+    const [wire] = toWire(attachments)
+    if (!wire) throw new Error('expected one wire attachment')
+    expect(wire).toMatchObject({ name: 'logo.png', text: null })
+    // "iVBORw==" is base64 for the PNG signature.
+    expect(wire.dataBase64).toBe('iVBORw==')
+  })
+})
+
+describe('binary files', () => {
+  it('keeps the bytes instead of dropping the file', async () => {
+    const [attachment] = await readAttachments([binaryFile('photo.png', [1, 2, 3], 'image/png')])
+    if (!attachment) throw new Error('expected one attachment')
+    expect(attachment.text).toBeNull()
+    expect(attachment.dataBase64).toBe(toBase64(new Uint8Array([1, 2, 3]).buffer))
+    expect(attachment.error).toBeUndefined()
+  })
+
+  it('explains a binary file that is too large rather than losing it silently', async () => {
+    const oversized = {
+      name: 'huge.zip',
+      size: MAX_BINARY_BYTES + 1,
+      type: 'application/zip',
+      arrayBuffer: async () => new ArrayBuffer(0),
+    } as unknown as File
+    const [attachment] = await readAttachments([oversized])
+    if (!attachment) throw new Error('expected one attachment')
+    expect(attachment.dataBase64).toBeNull()
+    expect(attachment.error).toContain('limit')
+  })
+})
+
+describe('toBase64', () => {
+  it('encodes bytes', () => {
+    expect(toBase64(new Uint8Array([104, 105]).buffer)).toBe(btoa('hi'))
+  })
+
+  it('handles a payload past the argument-spread limit', () => {
+    // The naive implementation throws "Maximum call stack size exceeded" here.
+    const big = new Uint8Array(300_000).fill(65)
+    expect(toBase64(big.buffer)).toHaveLength(Math.ceil(300_000 / 3) * 4)
   })
 })
 

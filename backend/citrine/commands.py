@@ -13,6 +13,7 @@ from pathlib import Path
 from citrine import github
 from citrine.config import AgentConfig, CitrineConfig
 from citrine.git_identity import citrine_identity
+from citrine.tools.registry import TOOLS as TOOL_REGISTRY
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,10 @@ def run_command(raw: str, config: CitrineConfig | None = None) -> str:
         return _agent_command(arg, cfg)
     if head == "status":
         return _status(cfg)
+    if head == "tools":
+        return _tools_command(arg, cfg)
+    if head == "workspace":
+        return _workspace_command(arg, cfg)
     if head == "github":
         return _github_command(arg)
     if head == "init":
@@ -363,6 +368,113 @@ def _commit_command(arg: str) -> str:
     return github.commit(Path.cwd(), message).text()
 
 
+def _tools_command(arg: str, config: CitrineConfig) -> str:
+    """``/tools`` - inspect and configure what the agent may do.
+
+    The point of this command is that the tool layer is not a hidden default:
+    the user can see exactly which capabilities are on, turn any of them off,
+    and see the guards (destructive commands, workspace confinement) rather
+    than discovering them when something is refused.
+    """
+    settings = config.tools
+    parts = arg.split()
+    action = parts[0].lower() if parts else ""
+    name = parts[1].lower() if len(parts) > 1 else ""
+
+    # Flags the user can flip by name, mapped to the field they set.
+    toggles = {
+        "enable": ("enabled", True),
+        "on": ("enabled", True),
+        "disable": ("enabled", False),
+        "off": ("enabled", False),
+        "files": ("allow_files", None),
+        "write": ("allow_write", None),
+        "terminal": ("allow_terminal", None),
+        "git": ("allow_git", None),
+        "network": ("allow_network", None),
+        "destructive": ("allow_destructive", None),
+        "outside": ("allow_outside_workspace", None),
+    }
+
+    if action in toggles:
+        field_name, forced = toggles[action]
+        # A bare flag name (e.g. /tools terminal) toggles; an explicit
+        # on/off after it sets.
+        if forced is None:
+            if name in {"on", "off"}:
+                forced = name == "on"
+            else:
+                forced = not getattr(settings, field_name)
+        current = getattr(settings, field_name)
+        setattr(settings, field_name, forced)
+        state = "on" if forced else "off"
+        prefix = f"({field_name} was {'on' if current else 'off'}) " if current != forced else ""
+        return f"{prefix}{field_name} is now {state}."
+
+    if action == "root":
+        target = arg.split(maxsplit=1)[1].strip() if len(arg.split(maxsplit=1)) > 1 else ""
+        if not target:
+            return f"Workspace root: {settings.workspace_root or '(the app\'s working directory)'}"
+        resolved = Path(target).expanduser()
+        if not resolved.is_dir():
+            return f"Not a directory: {resolved}"
+        settings.workspace_root = str(resolved.resolve())
+        return (
+            f"Workspace root set to {settings.workspace_root}.\n"
+            "File tools are confined to it; commands run from it."
+        )
+
+    if action and action not in {"status", ""}:
+        return (
+            f"Unknown /tools action: {action}\n" + _tools_usage()
+        )
+
+    from citrine.tools import build_context, enabled_tools
+
+    context = build_context(config)
+    active = {tool.name for tool in enabled_tools(context)}
+    lines = ["Agent tools"]
+    lines.append(f"  tools enabled: {settings.enabled}")
+    for tool in TOOL_REGISTRY:
+        mark = "on " if tool.name in active else "off"
+        lines.append(f"  [{mark}] {tool.name} - {tool.category}")
+    lines.append("")
+    lines.append(f"  workspace root: {context.root}")
+    lines.append(f"  file writes:    {settings.allow_write}")
+    lines.append(f"  destructive commands: {'allowed' if settings.allow_destructive else 'refused'}")
+    lines.append(f"  outside workspace: {'allowed' if settings.allow_outside_workspace else 'refused'}")
+    lines.append(f"  command timeout: {settings.command_timeout_s}s")
+    lines.append("")
+    lines.append(_tools_usage())
+    return "\n".join(lines)
+
+
+def _tools_usage() -> str:
+    return "\n".join(
+        [
+            "Usage:",
+            "  /tools                     show tools and policy",
+            "  /tools on | off            enable or disable tools entirely",
+            "  /tools terminal on|off     toggle a capability (files, write,",
+            "                             terminal, git, network)",
+            "  /tools destructive on|off  allow destructive commands",
+            "  /tools outside on|off      allow paths outside the workspace",
+            "  /tools root <path>         set the workspace root",
+        ]
+    )
+
+
+def _workspace_command(arg: str, config: CitrineConfig) -> str:
+    """``/workspace [path]`` - show or set the root tools operate in."""
+    from citrine.tools import build_context
+
+    value = arg.strip()
+    if not value:
+        context = build_context(config)
+        return f"Workspace root: {context.root}"
+    return _tools_command(f"root {value}", config)
+
+
 def _status(config: CitrineConfig) -> str:
     provider = config.active_provider()
     agent = config.active_agent_config()
@@ -377,6 +489,7 @@ def _status(config: CitrineConfig) -> str:
             f"Model: {agent.model or (provider.model if provider else None) or 'not set'}",
             f"Search: {config.search_provider.label if config.search_provider else 'not configured'}",
             f"Theme: {config.theme}",
+            f"Tools: {'on' if config.tools.enabled else 'off'}",
             f"Commands: {len(COMMANDS)}",
         ]
     )
