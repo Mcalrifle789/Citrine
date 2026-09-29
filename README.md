@@ -247,6 +247,14 @@ cd backend && uv run pytest   # backend tests
 `npm run test:e2e` is the one that proves the whole spine: it launches Electron,
 waits for a live backend connection, and round-trips a message through Python.
 
+Run the backend suite **in the venv**, because that is the interpreter the app
+actually runs - the venv is Python 3.11, and code can pass on a newer system
+Python while failing there (f-string backslashes, for one):
+
+```powershell
+cd backend; .\.venv\Scripts\python -m pytest
+```
+
 ## How the pieces fit
 
 Three processes:

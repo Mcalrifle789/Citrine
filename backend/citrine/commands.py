@@ -414,7 +414,10 @@ def _tools_command(arg: str, config: CitrineConfig) -> str:
     if action == "root":
         target = arg.split(maxsplit=1)[1].strip() if len(arg.split(maxsplit=1)) > 1 else ""
         if not target:
-            return f"Workspace root: {settings.workspace_root or '(the app\'s working directory)'}"
+            # Kept out of the f-string: a backslash inside one is a syntax
+            # error on Python 3.11, which is what the app's venv runs.
+            current = settings.workspace_root or "(the app's working directory)"
+            return f"Workspace root: {current}"
         resolved = Path(target).expanduser()
         if not resolved.is_dir():
             return f"Not a directory: {resolved}"
