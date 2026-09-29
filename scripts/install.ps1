@@ -124,6 +124,18 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'npm install failed.' }
 } finally { Pop-Location }
 
+# Electron ships its binary via an install script that some environments
+# (global ignore-scripts, stripped package metadata) skip silently. A plain
+# build does not catch this - only launching does - so check for the binary
+# explicitly and fetch it directly if it is missing.
+$electronExe = Join-Path $root 'node_modules\electron\dist\electron.exe'
+if (-not (Test-Path $electronExe)) {
+    Write-Step "Fetching the Electron binary (its install script was skipped)"
+    node (Join-Path $root 'node_modules\electron\install.js')
+    if ($LASTEXITCODE -ne 0) { throw 'Electron binary download failed. Check your network and re-run this script.' }
+    if (-not (Test-Path $electronExe)) { throw 'Electron binary still missing after download. See the output above.' }
+}
+
 # --- 3. Python backend -----------------------------------------------------
 
 Write-Step 'Setting up the Python backend'
